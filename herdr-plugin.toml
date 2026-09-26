@@ -1,0 +1,59 @@
+id = "herdr-tab-cwd"
+name = "Tab Cwd"
+version = "0.4.0"
+min_herdr_version = "0.8.0"
+description = "Restore working directories in named tabs on server startup"
+platforms = ["linux", "macos", "windows"]
+
+[[startup]]
+command = ["/bin/sh", "src/run.sh"]
+
+# Manual trigger: `herdr plugin action invoke herdr-tab-cwd.snapshot`.
+# Runs inside the plugin environment, so HERDR_PLUGIN_CONFIG_DIR is set
+# and no --out is needed. Fully regenerates config.toml as a mirror of the
+# live tabs (missing file = fresh write).
+[[actions]]
+id = "snapshot"
+title = "Snapshot tab working directories"
+contexts = ["workspace"]
+command = ["/bin/sh", "src/snapshot.sh"]
+
+# Keep config.toml fresh while the server runs: re-snapshot live tab cwds
+# whenever the layout meaningfully changes. Deliberately *not* subscribed:
+# `*.focused`, `pane.scroll_changed`, `pane.output_matched`, and
+# `pane.agent_status_changed` fire constantly during normal use.
+[[events]]
+on = "tab.created"
+command = ["/bin/sh", "src/snapshot.sh"]
+
+[[events]]
+on = "tab.closed"
+command = ["/bin/sh", "src/snapshot.sh"]
+
+[[events]]
+on = "tab.renamed"
+command = ["/bin/sh", "src/snapshot.sh"]
+
+[[events]]
+on = "pane.closed"
+command = ["/bin/sh", "src/snapshot.sh"]
+
+[[events]]
+on = "workspace.created"
+command = ["/bin/sh", "src/snapshot.sh"]
+
+[[events]]
+on = "workspace.closed"
+command = ["/bin/sh", "src/snapshot.sh"]
+
+[[events]]
+on = "worktree.created"
+command = ["/bin/sh", "src/snapshot.sh"]
+
+[[events]]
+on = "worktree.opened"
+command = ["/bin/sh", "src/snapshot.sh"]
+
+[[events]]
+on = "worktree.removed"
+command = ["/bin/sh", "src/snapshot.sh"]
