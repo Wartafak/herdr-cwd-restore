@@ -1,59 +1,96 @@
 id = "herdr-tab-cwd"
 name = "Tab Cwd"
-version = "0.4.0"
+version = "0.9.0"
 min_herdr_version = "0.8.0"
-description = "Restore working directories in named tabs on server startup"
+description = "Auto-save the full workspace layout to a single project file on every change; open declarative project workspaces on demand"
 platforms = ["linux", "macos", "windows"]
 
-[[startup]]
-command = ["/bin/sh", "src/run.sh"]
-
-# Manual trigger: `herdr plugin action invoke herdr-tab-cwd.snapshot`.
-# Runs inside the plugin environment, so HERDR_PLUGIN_CONFIG_DIR is set
-# and no --out is needed. Fully regenerates config.toml as a mirror of the
-# live tabs (missing file = fresh write).
+# Open a declarative project workspace: `herdr plugin action invoke
+# herdr-tab-cwd.open` (invoke takes no arguments and does not forward the
+# caller's environment, so the project defaults to the slugified workspace
+# label -- e.g. the "My Projects" workspace opens
+# `projects/my-projects.toml`). Reads projects/<name>.toml,
+# creates one tab per [[tabs]] entry natively started in its working_dir via
+# `herdr tab create --cwd`, then runs the entry's command if it has one.
 [[actions]]
-id = "snapshot"
-title = "Snapshot tab working directories"
+id = "open"
+title = "Open project workspace"
 contexts = ["workspace"]
-command = ["/bin/sh", "src/snapshot.sh"]
+command = ["/bin/sh", "src/open.sh"]
 
-# Keep config.toml fresh while the server runs: re-snapshot live tab cwds
-# whenever the layout meaningfully changes. Deliberately *not* subscribed:
-# `*.focused`, `pane.scroll_changed`, `pane.output_matched`, and
-# `pane.agent_status_changed` fire constantly during normal use.
+# Freeze the current tabs into a reusable project template:
+# `herdr plugin action invoke herdr-tab-cwd.capture` (same no-argument
+# constraint, so the name defaults to the slugified workspace label).
+# Writes projects/<name>.toml (top-level working_dir = the
+# longest common ancestor of the live tab dirs) and refuses to overwrite an
+# existing file unless capture runs with --force. Ambiguous labels are
+# skipped with a warning -- rename the tab and recapture.
+[[actions]]
+id = "capture"
+title = "Capture project workspace"
+contexts = ["workspace"]
+command = ["/bin/sh", "src/capture.sh"]
+
+# Keep projects/autosave.toml fresh while the server runs: rewrite the full
+# live layout whenever it meaningfully changes. Tab and workspace lifecycle
+# are covered symmetrically (created/closed/renamed/moved, plus workspace
+# reorder/provenance updates); pane.closed covers splits being removed.
+# Deliberately *not* subscribed: `*.focused`, `pane.scroll_changed`,
+# `pane.output_matched`, and `pane.agent_status_changed` fire constantly
+# during normal use. Note `workspace.metadata_updated` never invokes plugin
+# hooks by design (API subscribers only).
 [[events]]
 on = "tab.created"
-command = ["/bin/sh", "src/snapshot.sh"]
+command = ["/bin/sh", "src/capture.sh", "--autosave"]
 
 [[events]]
 on = "tab.closed"
-command = ["/bin/sh", "src/snapshot.sh"]
+command = ["/bin/sh", "src/capture.sh", "--autosave"]
 
 [[events]]
 on = "tab.renamed"
-command = ["/bin/sh", "src/snapshot.sh"]
+command = ["/bin/sh", "src/capture.sh", "--autosave"]
+
+[[events]]
+on = "tab.moved"
+command = ["/bin/sh", "src/capture.sh", "--autosave"]
 
 [[events]]
 on = "pane.closed"
-command = ["/bin/sh", "src/snapshot.sh"]
+command = ["/bin/sh", "src/capture.sh", "--autosave"]
 
 [[events]]
 on = "workspace.created"
-command = ["/bin/sh", "src/snapshot.sh"]
+command = ["/bin/sh", "src/capture.sh", "--autosave"]
 
 [[events]]
 on = "workspace.closed"
-command = ["/bin/sh", "src/snapshot.sh"]
+command = ["/bin/sh", "src/capture.sh", "--autosave"]
+
+[[events]]
+on = "workspace.renamed"
+command = ["/bin/sh", "src/capture.sh", "--autosave"]
+
+[[events]]
+on = "workspace.moved"
+command = ["/bin/sh", "src/capture.sh", "--autosave"]
+
+[[events]]
+on = "workspace.reordered"
+command = ["/bin/sh", "src/capture.sh", "--autosave"]
+
+[[events]]
+on = "workspace.updated"
+command = ["/bin/sh", "src/capture.sh", "--autosave"]
 
 [[events]]
 on = "worktree.created"
-command = ["/bin/sh", "src/snapshot.sh"]
+command = ["/bin/sh", "src/capture.sh", "--autosave"]
 
 [[events]]
 on = "worktree.opened"
-command = ["/bin/sh", "src/snapshot.sh"]
+command = ["/bin/sh", "src/capture.sh", "--autosave"]
 
 [[events]]
 on = "worktree.removed"
-command = ["/bin/sh", "src/snapshot.sh"]
+command = ["/bin/sh", "src/capture.sh", "--autosave"]
