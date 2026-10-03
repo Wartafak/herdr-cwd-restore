@@ -17,7 +17,7 @@ let savedEnv;
 let savedError;
 beforeEach(() => {
   savedEnv = {
-    HERDR_TAB_CWD_PROJECT: process.env.HERDR_TAB_CWD_PROJECT,
+    HERDR_WORKSPACE_AUTOSAVE_PROJECT: process.env.HERDR_WORKSPACE_AUTOSAVE_PROJECT,
     HERDR_PLUGIN_CONTEXT_JSON: process.env.HERDR_PLUGIN_CONTEXT_JSON,
   };
   // parseArgs failure paths log to stderr; keep test output clean.
@@ -73,12 +73,12 @@ describe("parseArgs", () => {
   });
 
   it("falls back to env then workspace slug", () => {
-    delete process.env.HERDR_TAB_CWD_PROJECT;
+    delete process.env.HERDR_WORKSPACE_AUTOSAVE_PROJECT;
     delete process.env.HERDR_PLUGIN_CONTEXT_JSON;
     assert.equal(parseArgs([]).name, null);
-    process.env.HERDR_TAB_CWD_PROJECT = "from-env";
+    process.env.HERDR_WORKSPACE_AUTOSAVE_PROJECT = "from-env";
     assert.equal(parseArgs([]).name, "from-env");
-    delete process.env.HERDR_TAB_CWD_PROJECT;
+    delete process.env.HERDR_WORKSPACE_AUTOSAVE_PROJECT;
     process.env.HERDR_PLUGIN_CONTEXT_JSON = JSON.stringify({ workspace_label: "My Projects" });
     assert.equal(parseArgs([]).name, "my-projects");
   });

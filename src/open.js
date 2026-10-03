@@ -28,7 +28,7 @@
 //                              # Named spaces are reused by exact label when
 //                              # present, otherwise created fresh.
 //
-// The project to open comes from `$HERDR_TAB_CWD_PROJECT` or from argv[2]
+// The project to open comes from `$HERDR_WORKSPACE_AUTOSAVE_PROJECT` or from argv[2]
 // when run directly as `node src/open.js <name>` (handy for shell aliases).
 // `herdr plugin action invoke` takes no arguments and does not forward the
 // caller's environment, so for invocations the name falls back to the
@@ -43,7 +43,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { parseTomlString } = require("./toml");
 
-const PLUGIN_ID = "herdr-tab-cwd";
+const PLUGIN_ID = "herdr-workspace-autosave";
 const PROJECTS_DIR_NAME = "projects";
 
 class ProjectError extends Error {}
@@ -316,7 +316,7 @@ function closeTab(tabId) {
   const closed = spawnSync(herdrBinary(), ["tab", "close", tabId], { encoding: "utf8" });
   if (closed.status !== 0) {
     console.error(
-      `herdr-tab-cwd: warning: could not close default tab ${tabId}: ` +
+      `herdr-workspace-autosave: warning: could not close default tab ${tabId}: ` +
         (closed.stderr || "").trim()
     );
   }
@@ -358,7 +358,7 @@ function openGroups(resolved) {
       const { paneId } = createTab(dir, tab.name, workspaceId);
       if (tab.command !== null) runInPane(paneId, tab.command);
       const where = group.workspace === null ? "current workspace" : `workspace '${group.workspace}'`;
-      console.error(`herdr-tab-cwd: opened tab '${tab.name}' in ${dir} (${where})`);
+      console.error(`herdr-workspace-autosave: opened tab '${tab.name}' in ${dir} (${where})`);
     }
     if (autoTabId !== null) closeTab(autoTabId);
   }
@@ -366,10 +366,10 @@ function openGroups(resolved) {
 
 function main() {
   const name =
-    process.env.HERDR_TAB_CWD_PROJECT || process.argv[2] || defaultProjectName();
+    process.env.HERDR_WORKSPACE_AUTOSAVE_PROJECT || process.argv[2] || defaultProjectName();
   if (!name) {
     console.error(
-      "herdr-tab-cwd: no project given; set HERDR_TAB_CWD_PROJECT, pass a name, or invoke from a workspace"
+      "herdr-workspace-autosave: no project given; set HERDR_WORKSPACE_AUTOSAVE_PROJECT, pass a name, or invoke from a workspace"
     );
     return 2;
   }
@@ -381,7 +381,7 @@ function main() {
     openGroups(resolved);
   } catch (error) {
     if (error instanceof ProjectError) {
-      console.error(`herdr-tab-cwd: ${error.message}`);
+      console.error(`herdr-workspace-autosave: ${error.message}`);
       return 1;
     }
     throw error;

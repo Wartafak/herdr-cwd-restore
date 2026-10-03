@@ -1,5 +1,5 @@
 {
-  "name": "herdr-tab-cwd",
+  "name": "herdr-workspace-autosave",
   "version": "0.9.0",
   "description": "Herdr plugin: autosave workspace layouts and reopen them as project templates",
   "type": "commonjs",

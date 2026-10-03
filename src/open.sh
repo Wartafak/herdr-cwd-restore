@@ -6,7 +6,7 @@
 # one found. The project to open defaults to the slugified workspace label
 # from the invocation context (`herdr plugin action invoke` takes no
 # arguments and does not forward the caller's environment); explicit names
-# come from $HERDR_TAB_CWD_PROJECT or argv (`node src/open.js <name>`).
+# come from $HERDR_WORKSPACE_AUTOSAVE_PROJECT or argv (`node src/open.js <name>`).
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 # OPEN_SH_NODE_CANDIDATES overrides the search list; used by tests.
 CANDIDATES=${OPEN_SH_NODE_CANDIDATES:-"node nodejs /opt/homebrew/bin/node /usr/local/bin/node"}
@@ -25,5 +25,5 @@ if [ -n "${HOME:-}" ]; then
     fi
   done
 fi
-echo "herdr-tab-cwd: no Node 18+ interpreter found" >&2
+echo "herdr-workspace-autosave: no Node 18+ interpreter found" >&2
 exit 1

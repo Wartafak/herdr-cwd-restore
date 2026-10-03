@@ -1,4 +1,4 @@
-# herdr-tab-cwd
+# herdr-workspace-autosave
 
 Keep the full Herdr workspace layout in a single auto-saved project file.
 
@@ -29,7 +29,7 @@ previous spaces are simply overwritten by the next snapshot.
 1. Check prerequisites: Herdr >= 0.8.0 and Node >= 18 (`node --version`).
 2. Link the plugin:
    ```sh
-   herdr plugin link /path/to/herdr-tab-cwd
+   herdr plugin link /path/to/herdr-workspace-autosave
    ```
 3. Verify the link took cleanly — the `warnings` field must be empty
    (it surfaces bad `[[events]]` names or manifest problems):
@@ -39,7 +39,7 @@ previous spaces are simply overwritten by the next snapshot.
 4. The autosave file appears on its own after the first tab/workspace
    event — or force one immediately:
    ```sh
-   herdr plugin action invoke herdr-tab-cwd.capture
+   herdr plugin action invoke herdr-workspace-autosave.capture
    ```
    (Invoked, the name defaults to the slugified workspace label; the
    automatic file is always `projects/autosave.toml` regardless.)
@@ -49,14 +49,14 @@ previous spaces are simply overwritten by the next snapshot.
 6. Verify: restart the Herdr server (or trigger a live handoff), then
    check the hook ran and what it did:
    ```sh
-   herdr plugin log list --plugin herdr-tab-cwd
+   herdr plugin log list --plugin herdr-workspace-autosave
    ```
    Expect `already present ... skipping` lines when nothing is missing.
 
 ## Autosave file
 
 `projects/autosave.toml` inside the plugin config dir
-(`herdr plugin config-dir herdr-tab-cwd`) is rewritten untouched on every
+(`herdr plugin config-dir herdr-workspace-autosave`) is rewritten untouched on every
 subscribed event and every hooked `cd` — never hand-edit it, the next
 change overwrites it anyway:
 
@@ -102,14 +102,14 @@ leaves a half-built workspace behind. Unknown projects fail listing the
 available ones.
 
 ```sh
-herdr plugin action invoke herdr-tab-cwd.open     # rebuild (defaults to workspace slug)
-herdr plugin action invoke herdr-tab-cwd.capture  # freeze current tabs to projects/<slug>.toml
+herdr plugin action invoke herdr-workspace-autosave.open     # rebuild (defaults to workspace slug)
+herdr plugin action invoke herdr-workspace-autosave.capture  # freeze current tabs to projects/<slug>.toml
 ```
 
 Invoke takes no arguments and never sees your shell's environment, so both
 default to the slugified workspace label — e.g. the "My Projects" workspace
 opens `projects/my-projects.toml`. For an explicit name, run directly:
-`HERDR_TAB_CWD_PROJECT=Shop node src/open.js`,
+`HERDR_WORKSPACE_AUTOSAVE_PROJECT=Shop node src/open.js`,
 `node src/capture.js Shop --force` (recapture refuses to overwrite without
 `--force`).
 
@@ -124,20 +124,20 @@ waits on it.
 
 ```fish
 # config.fish
-set -g __herdr_tab_cwd_capture_sh /path/to/herdr-tab-cwd/src/capture.sh
-source /path/to/herdr-tab-cwd/src/shell/herdr-tab-cwd.fish
+set -g __herdr_workspace_autosave_capture_sh /path/to/herdr-workspace-autosave/src/capture.sh
+source /path/to/herdr-workspace-autosave/src/shell/herdr-workspace-autosave.fish
 ```
 
 ```zsh
 # .zshrc
-__herdr_tab_cwd_capture_sh=/path/to/herdr-tab-cwd/src/capture.sh
-source /path/to/herdr-tab-cwd/src/shell/herdr-tab-cwd.zsh
+__herdr_workspace_autosave_capture_sh=/path/to/herdr-workspace-autosave/src/capture.sh
+source /path/to/herdr-workspace-autosave/src/shell/herdr-workspace-autosave.zsh
 ```
 
 ```sh
 # .bashrc (wraps cd; delegates to the builtin, captures only on success)
-__herdr_tab_cwd_capture_sh=/path/to/herdr-tab-cwd/src/capture.sh
-source /path/to/herdr-tab-cwd/src/shell/herdr-tab-cwd.sh
+__herdr_workspace_autosave_capture_sh=/path/to/herdr-workspace-autosave/src/capture.sh
+source /path/to/herdr-workspace-autosave/src/shell/herdr-workspace-autosave.sh
 ```
 
 Use an absolute path: the hook runs after the `cd`, so a relative path
@@ -170,7 +170,7 @@ changed.
   with `herdr pane run`.
 - `src/open.sh` — interpreter wrapper for the invocable `open`
   `[[actions]]` entry.
-- `src/shell/herdr-tab-cwd.{fish,zsh,sh}` — optional shell hooks that run
+- `src/shell/herdr-workspace-autosave.{fish,zsh,sh}` — optional shell hooks that run
   the autosave after every `cd` inside Herdr panes.
 - `test/*.test.js` — unit tests (built-in `node:test`, see Testing).
 

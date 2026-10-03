@@ -1,12 +1,12 @@
-id = "herdr-tab-cwd"
-name = "Tab Cwd"
+id = "herdr-workspace-autosave"
+name = "Workspace Autosave"
 version = "0.9.0"
 min_herdr_version = "0.8.0"
 description = "Auto-save the full workspace layout to a single project file on every change; open declarative project workspaces on demand"
 platforms = ["linux", "macos", "windows"]
 
 # Open a declarative project workspace: `herdr plugin action invoke
-# herdr-tab-cwd.open` (invoke takes no arguments and does not forward the
+# herdr-workspace-autosave.open` (invoke takes no arguments and does not forward the
 # caller's environment, so the project defaults to the slugified workspace
 # label -- e.g. the "My Projects" workspace opens
 # `projects/my-projects.toml`). Reads projects/<name>.toml,
@@ -19,7 +19,7 @@ contexts = ["workspace"]
 command = ["/bin/sh", "src/open.sh"]
 
 # Freeze the current tabs into a reusable project template:
-# `herdr plugin action invoke herdr-tab-cwd.capture` (same no-argument
+# `herdr plugin action invoke herdr-workspace-autosave.capture` (same no-argument
 # constraint, so the name defaults to the slugified workspace label).
 # Writes projects/<name>.toml (top-level working_dir = the
 # longest common ancestor of the live tab dirs) and refuses to overwrite an

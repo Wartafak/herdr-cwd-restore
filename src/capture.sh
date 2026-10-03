@@ -6,7 +6,7 @@
 # With no arguments this captures the live tab state into a project template
 # named after the slugified workspace label
 # (`$HERDR_PLUGIN_CONFIG_DIR/projects/<workspace-slug>.toml`); an explicit
-# name via $HERDR_TAB_CWD_PROJECT or argv replaces the default, and any other
+# name via $HERDR_WORKSPACE_AUTOSAVE_PROJECT or argv replaces the default, and any other
 # arguments are passed straight to capture.js.
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 # CAPTURE_SH_NODE_CANDIDATES overrides the search list; used by tests.
@@ -26,5 +26,5 @@ if [ -n "${HOME:-}" ]; then
     fi
   done
 fi
-echo "herdr-tab-cwd: no Node 18+ interpreter found" >&2
+echo "herdr-workspace-autosave: no Node 18+ interpreter found" >&2
 exit 1
