@@ -4,7 +4,7 @@
   "description": "Herdr plugin: autosave workspace layouts and reopen them as project templates",
   "type": "commonjs",
   "scripts": {
-    "test": "node --test test/toml.test.js test/live.test.js test/open.test.js test/capture.test.js"
+    "test": "node --test test/toml.test.js test/workspace-state.test.js test/open.test.js test/snapshot.test.js test/restore.test.js"
   },
   "engines": {
     "node": ">=18"

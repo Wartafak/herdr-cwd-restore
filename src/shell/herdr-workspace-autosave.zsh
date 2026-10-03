@@ -1,12 +1,12 @@
 # herdr-workspace-autosave: auto-save the full workspace layout after every directory change.
 #
 # Source this from .zshrc:
-#   __herdr_workspace_autosave_capture_sh=/path/to/herdr-workspace-autosave/src/capture.sh
+#   __herdr_workspace_autosave_capture_sh=/path/to/herdr-workspace-autosave/src/snapshot.sh
 #   source /path/to/herdr-workspace-autosave/src/shell/herdr-workspace-autosave.zsh
 #
 # How it works: Herdr injects HERDR_ENV=1 (plus HERDR_TAB_ID / HERDR_PANE_ID /
 # HERDR_WORKSPACE_ID) into every pane's shell, so this fires only inside Herdr
-# panes. The layout is rewritten into the single projects/autosave.toml (full
+# panes. The layout is rewritten into the single projects/workspace-state.toml (full
 # state across all spaces), the mirror of the live layout. The
 # capture runs fully detached (&!) so the prompt never waits on it.
 

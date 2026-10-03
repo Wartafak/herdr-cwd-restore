@@ -1,11 +1,14 @@
 "use strict";
-// Live Herdr state: tab labels joined with their working directories.
+// Live Herdr state: the single reader every other script consumes.
+//
+// Returns the current workspace layout as a flat list of
+// [{ tabId, workspace, label, cwd }] with ~-abbreviated cwds ("" when a tab
+// has no pane with a readable foreground_cwd).
 //
 // Tab objects expose no cwd (`herdr tab list` yields agent_status, focused,
 // label, number, pane_count, tab_id, workspace_id), so each tab's directory
 // comes from its panes' `foreground_cwd` (`herdr pane list`). Workspace
-// labels come from `herdr workspace list`. Shared by capture.js (autosave +
-// templates) and, indirectly, anything else that mirrors live state.
+// labels come from `herdr workspace list`.
 
 const { spawnSync } = require("node:child_process");
 
@@ -49,9 +52,8 @@ function utcStamp() {
   return new Date().toISOString();
 }
 
-// Map<label, Array<{ workspace, label, cwd }>> with ~-abbreviated cwds
-// ("" when a tab has no pane with a readable foreground_cwd).
-function collectLiveRows() {
+// The current workspace layout: [{ tabId, workspace, label, cwd }].
+function getWorkspaceState() {
   const workspaces = ((runHerdrJson("workspace", "list").result || {}).workspaces || []);
   const wsById = new Map(workspaces.map((w) => [w.workspace_id, w.label]));
   const tabs = ((runHerdrJson("tab", "list").result || {}).tabs || []);
@@ -62,18 +64,15 @@ function collectLiveRows() {
       cwdByTab.set(pane.tab_id, pane.foreground_cwd);
     }
   }
-  const rowsByLabel = new Map();
-  for (const tab of tabs) {
+  return tabs.map((tab) => {
     const raw = cwdByTab.get(tab.tab_id) || "";
-    const row = {
+    return {
+      tabId: tab.tab_id,
       workspace: wsById.get(tab.workspace_id) || "",
       label: tab.label,
       cwd: raw ? shortenHome(raw) : "",
     };
-    if (!rowsByLabel.has(tab.label)) rowsByLabel.set(tab.label, []);
-    rowsByLabel.get(tab.label).push(row);
-  }
-  return rowsByLabel;
+  });
 }
 
-module.exports = { collectLiveRows, shortenHome, utcStamp, LiveError };
+module.exports = { getWorkspaceState, shortenHome, utcStamp, LiveError };

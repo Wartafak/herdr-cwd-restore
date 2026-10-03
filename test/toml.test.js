@@ -1,5 +1,5 @@
 "use strict";
-// Unit tests for src/toml.js. Run: node --test test/toml.test.js
+// Unit tests for src/utils/toml.js. Run: node --test test/toml.test.js
 // (or `npm test` from the repo root). No external dependencies.
 
 const { describe, it } = require("node:test");
@@ -9,7 +9,7 @@ const {
   parseTomlString,
   splitEntries,
   parseEntry,
-} = require("../src/toml");
+} = require("../src/utils/toml");
 
 describe("tomlString", () => {
   it("quotes plain strings", () => {

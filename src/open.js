@@ -41,7 +41,7 @@ const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { parseTomlString } = require("./toml");
+const { parseTomlString } = require("./utils/toml");
 
 const PLUGIN_ID = "herdr-workspace-autosave";
 const PROJECTS_DIR_NAME = "projects";
@@ -401,6 +401,7 @@ module.exports = {
   groupByWorkspace,
   resolveWorkspaceId,
   openGroups,
+  closeTab,
   slugifyWorkspaceLabel,
   defaultProjectName,
   ProjectError,

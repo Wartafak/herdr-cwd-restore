@@ -1,10 +1,11 @@
 "use strict";
-// Unit tests for src/live.js (pure helpers only; collectLiveRows needs a
-// running Herdr server and is covered by live verification instead).
+// Unit tests for src/utils/workspace-state.js (pure helpers only;
+// getWorkspaceState needs a running Herdr server and is covered by live
+// verification instead).
 
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
-const { shortenHome } = require("../src/live");
+const { shortenHome } = require("../src/utils/workspace-state");
 
 describe("shortenHome", () => {
   it("abbreviates paths under $HOME", () => {

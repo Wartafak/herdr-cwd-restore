@@ -28,7 +28,18 @@ function scratch() {
   return dir;
 }
 after(() => {
-  fs.rmSync(SCRATCH, { recursive: true, force: true });
+  // Only this file's own case dirs: whole-dir wipes race with parallel test
+  // files sharing test/.tmp/.
+  const prefix = `case-${process.pid}-`;
+  let entries = [];
+  try {
+    entries = fs.readdirSync(SCRATCH);
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (entry.startsWith(prefix)) fs.rmSync(path.join(SCRATCH, entry), { recursive: true, force: true });
+  }
 });
 
 // Env keys the tests borrow; always restored afterwards.

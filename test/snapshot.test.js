@@ -1,17 +1,28 @@
 "use strict";
-// Unit tests for the pure parts of src/capture.js (arg parsing, ancestor
-// computation, tab collection, rendering). Live Herdr reads are covered by
-// live verification instead.
+// Unit tests for the pure parts of src/snapshot.js (arg parsing, ancestor
+// computation, tab collection, rendering, backup rotation). Live Herdr reads
+// are covered by live verification instead.
 
-const { describe, it, beforeEach, afterEach } = require("node:test");
+const { describe, it, beforeEach, afterEach, after } = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const {
   parseArgs,
   collectProjectTabs,
   commonAncestor,
   renderProject,
+  rotateBackup,
   validProjectName,
-} = require("../src/capture");
+} = require("../src/snapshot");
+
+// Rotation fixtures stay inside the repo (test/.tmp/, git-ignored) under a
+// file-specific subdir; only that subdir is cleaned (the whole-dir wipe in
+// open.test.js races with parallel test files).
+const ROTATE_SCRATCH = path.join(__dirname, ".tmp", `rotate-${process.pid}`);
+after(() => {
+  fs.rmSync(ROTATE_SCRATCH, { recursive: true, force: true });
+});
 
 let savedEnv;
 let savedError;
@@ -35,7 +46,7 @@ afterEach(() => {
 describe("validProjectName", () => {
   it("accepts plain names, rejects paths and dots", () => {
     assert.equal(validProjectName("myproj"), true);
-    assert.equal(validProjectName("autosave"), true);
+    assert.equal(validProjectName("workspace-state"), true);
     for (const bad of ["", ".", "..", "a/b", "a\\b"]) {
       assert.equal(validProjectName(bad), false);
     }
@@ -57,7 +68,7 @@ describe("parseArgs", () => {
 
   it("forces name and overwrite for --autosave", () => {
     assert.deepEqual(parseArgs(["--autosave"]), {
-      name: "autosave",
+      name: "workspace-state",
       force: true,
       stdout: false,
       out: null,
@@ -151,6 +162,22 @@ describe("collectProjectTabs", () => {
   });
 });
 
+describe("rotateBackup", () => {
+  it("copies the existing file to .prev.toml and ignores missing files", () => {
+    const dir = ROTATE_SCRATCH;
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.mkdirSync(dir, { recursive: true });
+    const out = path.join(dir, "workspace-state.toml");
+    rotateBackup(out); // missing: nothing to back up, no throw
+    fs.writeFileSync(out, "v1");
+    rotateBackup(out);
+    assert.equal(fs.readFileSync(path.join(dir, "workspace-state.prev.toml"), "utf8"), "v1");
+    fs.writeFileSync(out, "v2");
+    rotateBackup(out);
+    assert.equal(fs.readFileSync(path.join(dir, "workspace-state.prev.toml"), "utf8"), "v2");
+  });
+});
+
 describe("renderProject", () => {
   it("emits workspace keys and omits inherited dirs", () => {
     const text = renderProject("demo", "/base", [
@@ -166,8 +193,8 @@ describe("renderProject", () => {
     assert.ok(!text.split("[[tabs]]")[3].includes("workspace = "));
   });
 
-  it("notes automatic regeneration for the autosave file", () => {
-    assert.match(renderProject("autosave", "/", []), /Regenerated automatically/);
+  it("notes automatic regeneration for the workspace-state file", () => {
+    assert.match(renderProject("workspace-state", "/", []), /Regenerated automatically/);
     assert.match(renderProject("demo", "/", []), /Recapture with/);
   });
 });

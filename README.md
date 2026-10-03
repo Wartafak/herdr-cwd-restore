@@ -1,11 +1,26 @@
 # herdr-workspace-autosave
 
-Keep the full Herdr workspace layout in a single auto-saved project file.
+> **Requires `resume_agents_on_restore = false`** in `~/.config/herdr/config.toml`
+> (see Requirements below). Restored panes must come back as plain shells —
+> with native agent session restore on, Herdr spawns agent processes this
+> plugin would only have to tear down again.
+
+Keep the full Herdr workspace layout in a single auto-saved project file —
+and fix working-directory restoration.
+
+Herdr restores the workspace itself on server restart, but it only remembers
+the directory each tab was *created* in: `cd` to another directory afterwards
+and the new location is forgotten. This plugin tracks where your tabs
+*actually* are — via each pane's live `foreground_cwd` plus a shell hook that
+snapshots after every `cd` — and enforces those directories on the next
+startup, recreating any tab Herdr restored into the wrong place. That is the
+whole point: without the `cd` hook below, this plugin is just a second copy
+of what Herdr already does.
 
 Herdr restores the workspace itself on server restart; this plugin keeps a
 live mirror of that layout — every tab/pane/workspace change (plus every
 `cd`) rewrites the whole cross-space state into one file,
-`projects/autosave.toml`. What counts is always the current live state:
+`projects/workspace-state.toml`. What counts is always the current live state:
 previous spaces are simply overwritten by the next snapshot.
 
 ## How it works
@@ -13,20 +28,28 @@ previous spaces are simply overwritten by the next snapshot.
 1. Any meaningful layout change (tab created/closed/renamed/moved,
    pane closed, workspace created/closed/renamed/moved/reordered/updated,
    worktree created/opened/removed) fires a `[[events]]` hook that runs
-   `src/capture.sh --autosave`, rewriting `projects/autosave.toml` with the
+   `src/snapshot.sh --autosave`, rewriting `projects/workspace-state.toml` with the
    full cross-space state. High-frequency events (`*.focused`,
    `pane.scroll_changed`, `pane.output_matched`,
    `pane.agent_status_changed`) are deliberately not subscribed, and
    `workspace.metadata_updated` never invokes plugin hooks by design.
-2. The optional shell hooks (below) do the same after every `cd`, so the
-   file also tracks directory changes inside already-open panes.
-3. There is no `[[startup]]` hook: Herdr restores the workspace on its own,
-   and the autosave file is purely a mirror of the live state — nothing to
-   replay.
+2. The required shell hooks (install step 5) do the same after every `cd`,
+   so the file also tracks directory changes inside already-open panes —
+   the gap Herdr alone leaves behind.
+3. On every server start (and live-handoff takeover) a `[[startup]]` hook
+   runs `src/restore.sh`, which reconciles the restored session with
+   `projects/workspace-state.toml` as the source of truth: autosave entries missing
+   live are recreated, entries already present in the saved directory are
+   kept, and entries Herdr restored into the wrong directory (or duplicated)
+   are closed and recreated from the saved definition. All directories are
+   verified before anything is closed or created.
 
 ## Install
 
-1. Check prerequisites: Herdr >= 0.8.0 and Node >= 18 (`node --version`).
+1. Check prerequisites: Herdr >= 0.8.0 and Node >= 18 (`node --version`),
+   plus `resume_agents_on_restore = false` in `~/.config/herdr/config.toml`
+   (see Requirements — without it, restarts spawn agent processes instead
+   of the plain shells this plugin manages).
 2. Link the plugin:
    ```sh
    herdr plugin link /path/to/herdr-workspace-autosave
@@ -42,10 +65,31 @@ previous spaces are simply overwritten by the next snapshot.
    herdr plugin action invoke herdr-workspace-autosave.capture
    ```
    (Invoked, the name defaults to the slugified workspace label; the
-   automatic file is always `projects/autosave.toml` regardless.)
-5. Optional but recommended: autosave on every `cd` (see below).
-   Without it, the file refreshes on tab/pane/workspace lifecycle
-   events; with it, it also tracks `cd` inside open panes.
+   automatic file is always `projects/workspace-state.toml` regardless.)
+5. Hook your shell so every `cd` snapshots — this is the core of the
+   plugin, not an extra. Event hooks cover tab/pane/workspace lifecycle but
+   never fire on `cd` inside an already-open pane (panes are plain PTYs; no
+   documented event fires reliably on cwd change). Without this step the
+   plugin only duplicates what Herdr already does.
+   ```fish
+   # config.fish
+   set -g __herdr_workspace_autosave_capture_sh /path/to/herdr-workspace-autosave/src/snapshot.sh
+   source /path/to/herdr-workspace-autosave/src/shell/herdr-workspace-autosave.fish
+   ```
+   ```zsh
+   # .zshrc
+   __herdr_workspace_autosave_capture_sh=/path/to/herdr-workspace-autosave/src/snapshot.sh
+   source /path/to/herdr-workspace-autosave/src/shell/herdr-workspace-autosave.zsh
+   ```
+   ```sh
+   # .bashrc (wraps cd; delegates to the builtin, captures only on success)
+   __herdr_workspace_autosave_capture_sh=/path/to/herdr-workspace-autosave/src/snapshot.sh
+   source /path/to/herdr-workspace-autosave/src/shell/herdr-workspace-autosave.sh
+   ```
+   Use an absolute path: the hook runs after the `cd`, so a relative path
+   would resolve against the new directory. Herdr injects `HERDR_ENV=1`
+   into every pane's shell, so the hook fires only inside Herdr panes, and
+   the snapshot runs fully detached — the prompt never waits on it.
 6. Verify: restart the Herdr server (or trigger a live handoff), then
    check the hook ran and what it did:
    ```sh
@@ -55,7 +99,7 @@ previous spaces are simply overwritten by the next snapshot.
 
 ## Autosave file
 
-`projects/autosave.toml` inside the plugin config dir
+`projects/workspace-state.toml` inside the plugin config dir
 (`herdr plugin config-dir herdr-workspace-autosave`) is rewritten untouched on every
 subscribed event and every hooked `cd` — never hand-edit it, the next
 change overwrites it anyway:
@@ -66,6 +110,10 @@ change overwrites it anyway:
 - Same-label-different-dir tabs in one space are skipped with a warning
   (rename the tab so the next save picks it up); the same label in
   different spaces is saved once per space.
+- Every `--autosave` rewrite rotates the previous snapshot to
+  `projects/workspace-state.prev.toml` first, so one bad capture (e.g. the first
+  event after a degraded Herdr restore) never destroys the last good state
+  silently.
 
 ## Project workspaces (manual templates + on-demand open)
 
@@ -110,64 +158,39 @@ Invoke takes no arguments and never sees your shell's environment, so both
 default to the slugified workspace label — e.g. the "My Projects" workspace
 opens `projects/my-projects.toml`. For an explicit name, run directly:
 `HERDR_WORKSPACE_AUTOSAVE_PROJECT=Shop node src/open.js`,
-`node src/capture.js Shop --force` (recapture refuses to overwrite without
+`node src/snapshot.js Shop --force` (recapture refuses to overwrite without
 `--force`).
 
-## Autosave on every `cd` (optional)
+## Verifying the `cd` hook
 
-Event hooks cover tab/pane/workspace lifecycle, but not `cd` inside an
-already-open pane. For that, hook the shell itself — Herdr injects
-`HERDR_ENV=1` (plus `HERDR_TAB_ID` / `HERDR_PANE_ID` /
-`HERDR_WORKSPACE_ID`) into every pane's shell, so the hook fires only
-inside Herdr panes. The capture runs fully detached, so the prompt never
-waits on it.
-
-```fish
-# config.fish
-set -g __herdr_workspace_autosave_capture_sh /path/to/herdr-workspace-autosave/src/capture.sh
-source /path/to/herdr-workspace-autosave/src/shell/herdr-workspace-autosave.fish
-```
-
-```zsh
-# .zshrc
-__herdr_workspace_autosave_capture_sh=/path/to/herdr-workspace-autosave/src/capture.sh
-source /path/to/herdr-workspace-autosave/src/shell/herdr-workspace-autosave.zsh
-```
-
-```sh
-# .bashrc (wraps cd; delegates to the builtin, captures only on success)
-__herdr_workspace_autosave_capture_sh=/path/to/herdr-workspace-autosave/src/capture.sh
-source /path/to/herdr-workspace-autosave/src/shell/herdr-workspace-autosave.sh
-```
-
-Use an absolute path: the hook runs after the `cd`, so a relative path
-would resolve against the new directory. No `--out` is needed:
-`--autosave` always targets `projects/autosave.toml` under the plugin
-config dir (resolved via `$HOME` in interactive panes, where
-`HERDR_PLUGIN_CONFIG_DIR` is unset). There is no Herdr-side command
-interception to hook instead — panes are plain PTYs and no documented
-event fires reliably on cwd change, so the shell hook is the mechanism.
-
-To verify the hook in a pane: `echo $HERDR_ENV` must print `1`; `cd` to a
-directory, wait ~2 seconds, and check that `autosave.toml`'s mtime
-changed.
+In any pane: `echo $HERDR_ENV` must print `1` (otherwise the hook stays
+silent — correct outside Herdr). Then `cd` to a directory, wait ~2 seconds,
+and check that `workspace-state.toml`'s mtime changed. If it didn't, the hook path
+in your shell rc is wrong or the rc wasn't re-sourced.
 
 ## Layout
 
-- `herdr-plugin.toml` — plugin manifest (`[[events]]` autosave hooks and
-  the invocable `open` / `capture` `[[actions]]` entries).
-- `src/live.js` — live Herdr state: tab labels joined with per-tab
-  `foreground_cwd` and workspace labels (tab objects expose no cwd).
-- `src/toml.js` — minimal TOML reader/writer for the project schema
+- `herdr-plugin.toml` — plugin manifest (the `[[startup]]` restore hook,
+  the `[[events]]` autosave hooks and the invocable `open` / `capture`
+  `[[actions]]` entries).
+- `src/utils/workspace-state.js` — the single live-state reader:
+  `getWorkspaceState()` returns the current layout as
+  `[{ tabId, workspace, label, cwd }]` (tab objects expose no cwd, so each
+  tab's directory is joined in from the first pane with `foreground_cwd`).
+- `src/utils/toml.js` — minimal TOML reader/writer for the project schema
   (Node has no built-in TOML parser).
-- `src/capture.js` — renders live state into `projects/<name>.toml`
-  scaffolds, or the single `projects/autosave.toml` with `--autosave`
+- `src/snapshot.js` — renders live state into `projects/<name>.toml`
+  scaffolds, or the single `projects/workspace-state.toml` with `--autosave`
   (`--stdout` preview, `--out` writes elsewhere, `--force` overwrites).
-- `src/capture.sh` — interpreter wrapper for the event hooks, the shell
+- `src/snapshot.sh` — interpreter wrapper for the event hooks, the shell
   hooks, and the invocable `capture` `[[actions]]` entry.
 - `src/open.js` — project workspace opener: reads `projects/<name>.toml`,
   creates tabs via `herdr tab create --cwd` and delivers each `command`
   with `herdr pane run`.
+- `src/restore.js` — startup reconciler: enforces `projects/workspace-state.toml`
+  as the source of truth (missing tabs recreated, wrong-directory tabs
+  closed and recreated, exact matches kept).
+- `src/restore.sh` — interpreter wrapper for the `[[startup]]` hook.
 - `src/open.sh` — interpreter wrapper for the invocable `open`
   `[[actions]]` entry.
 - `src/shell/herdr-workspace-autosave.{fish,zsh,sh}` — optional shell hooks that run
@@ -188,12 +211,24 @@ npm test
 ```
 
 `test/*.test.js` cover the pure logic: TOML subset parsing, project
-parsing/naming/path resolution, capture arg handling and rendering. Live
-Herdr calls (`collectLiveRows`, `tab create`, `pane run`) are verified
-against a real server instead of mocked. Test fixtures are written under
-`test/.tmp/` (git-ignored, wiped after the run) — never outside the repo.
+parsing/naming/path resolution, snapshot arg handling/rendering/backup
+rotation, restore reconcile planning. Live
+Herdr calls (`getWorkspaceState`, `tab create`, `pane run`, `tab close`) are
+verified against a real server instead of mocked. Test fixtures go under
+file-specific subdirs of `test/.tmp/` (git-ignored) — never outside the repo.
 
 ## Requirements
 
 - Herdr >= 0.8.0 (developed against 0.9.x), Linux/macOS/Windows.
 - Node >= 18 (no npm dependencies).
+- `resume_agents_on_restore = false` in `~/.config/herdr/config.toml`:
+  ```toml
+  [session]
+  resume_agents_on_restore = false
+  ```
+  The plugin only works properly with native agent session restore off.
+  Restored panes must come back as plain shells in their saved directories:
+  resumed agent processes would spawn `opencode` (or other agent) instances
+  you never asked for, and agent-owned panes cannot be repaired in place
+  (keystrokes land in the agent TUI, not the shell) — so the startup
+  reconciler would only end up killing them anyway.
