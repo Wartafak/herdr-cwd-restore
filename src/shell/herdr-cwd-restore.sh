@@ -1,8 +1,8 @@
-# herdr-workspace-autosave: auto-save the full workspace layout after every directory change.
+# herdr-cwd-restore: snapshot live tab working directories after every directory change.
 #
 # Source this from .bashrc:
-#   __herdr_workspace_autosave_capture_sh=/path/to/herdr-workspace-autosave/src/snapshot.sh
-#   source /path/to/herdr-workspace-autosave/src/shell/herdr-workspace-autosave.sh
+#   __herdr_cwd_restore_snapshot_sh=/path/to/herdr-cwd-restore/src/snapshot.sh
+#   source /path/to/herdr-cwd-restore/src/shell/herdr-cwd-restore.sh
 #
 # Bash has no chpwd hook, so this wraps `cd` with a thin function that
 # delegates to the builtin and captures only on success. Herdr injects
@@ -12,14 +12,14 @@
 # spaces), the mirror of the live layout. The capture runs
 # fully detached so the prompt never waits on it.
 
-__herdr_workspace_autosave_capture() {
+__herdr_cwd_restore_snapshot() {
   [[ "${HERDR_ENV:-}" == "1" ]] || return 0
-  [[ -n "${__herdr_workspace_autosave_capture_sh:-}" ]] || return 0
-  nohup sh "$__herdr_workspace_autosave_capture_sh" >/dev/null 2>&1 &
+  [[ -n "${__herdr_cwd_restore_snapshot_sh:-}" ]] || return 0
+  nohup sh "$__herdr_cwd_restore_snapshot_sh" >/dev/null 2>&1 &
   disown 2>/dev/null || true
 }
 
 cd() {
   builtin cd "$@" || return
-  __herdr_workspace_autosave_capture
+  __herdr_cwd_restore_snapshot
 }

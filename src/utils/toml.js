@@ -1,5 +1,5 @@
 "use strict";
-// Minimal TOML support for herdr-workspace-autosave config files.
+// Minimal TOML support for herdr-cwd-restore config files.
 //
 // Node has no TOML parser in its standard library, so this module implements
 // exactly the subset this plugin reads and writes -- and nothing else:

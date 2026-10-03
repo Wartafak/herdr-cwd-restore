@@ -76,7 +76,7 @@ function closeTab(tabId) {
   const closed = spawnSync(herdrBinary(), ["tab", "close", tabId], { encoding: "utf8" });
   if (closed.status !== 0) {
     console.error(
-      `herdr-workspace-autosave: warning: could not close tab ${tabId}: ` +
+      `herdr-cwd-restore: warning: could not close tab ${tabId}: ` +
         (closed.stderr || "").trim()
     );
   }
@@ -118,7 +118,7 @@ function openGroups(resolved) {
       const { paneId } = createTab(dir, tab.name, workspaceId);
       if (tab.command !== null) runInPane(paneId, tab.command);
       const where = group.workspace === null ? "current workspace" : `workspace '${group.workspace}'`;
-      console.error(`herdr-workspace-autosave: opened tab '${tab.name}' in ${dir} (${where})`);
+      console.error(`herdr-cwd-restore: opened tab '${tab.name}' in ${dir} (${where})`);
     }
     if (autoTabId !== null) closeTab(autoTabId);
   }

@@ -1,4 +1,4 @@
-# herdr-workspace-autosave
+# herdr-cwd-restore
 
 > **Requires `resume_agents_on_restore = false`** in `~/.config/herdr/config.toml`
 > (see Requirements below). Restored panes must come back as plain shells —
@@ -46,7 +46,7 @@ of what Herdr already does.
    of the plain shells this plugin manages).
 2. Link the plugin:
    ```sh
-   herdr plugin link /path/to/herdr-workspace-autosave
+   herdr plugin link /path/to/herdr-cwd-restore
    ```
 3. Verify the link took cleanly — the `warnings` field must be empty
    (it surfaces bad `[[events]]` names or manifest problems):
@@ -56,7 +56,7 @@ of what Herdr already does.
 4. The state file appears on its own after the first tab/workspace
    event — or force one immediately:
    ```sh
-   herdr plugin action invoke herdr-workspace-autosave.capture
+   herdr plugin action invoke herdr-cwd-restore.capture
    ```
 5. Hook your shell so every `cd` snapshots — this is the core of the
    plugin. Event hooks cover tab/pane/workspace lifecycle but
@@ -65,18 +65,18 @@ of what Herdr already does.
    plugin only duplicates what Herdr already does.
    ```fish
    # config.fish
-   set -g __herdr_workspace_autosave_capture_sh /path/to/herdr-workspace-autosave/src/snapshot.sh
-   source /path/to/herdr-workspace-autosave/src/shell/herdr-workspace-autosave.fish
+   set -g __herdr_cwd_restore_snapshot_sh /path/to/herdr-cwd-restore/src/snapshot.sh
+   source /path/to/herdr-cwd-restore/src/shell/herdr-cwd-restore.fish
    ```
    ```zsh
    # .zshrc
-   __herdr_workspace_autosave_capture_sh=/path/to/herdr-workspace-autosave/src/snapshot.sh
-   source /path/to/herdr-workspace-autosave/src/shell/herdr-workspace-autosave.zsh
+   __herdr_cwd_restore_snapshot_sh=/path/to/herdr-cwd-restore/src/snapshot.sh
+   source /path/to/herdr-cwd-restore/src/shell/herdr-cwd-restore.zsh
    ```
    ```sh
    # .bashrc (wraps cd; delegates to the builtin, captures only on success)
-   __herdr_workspace_autosave_capture_sh=/path/to/herdr-workspace-autosave/src/snapshot.sh
-   source /path/to/herdr-workspace-autosave/src/shell/herdr-workspace-autosave.sh
+   __herdr_cwd_restore_snapshot_sh=/path/to/herdr-cwd-restore/src/snapshot.sh
+   source /path/to/herdr-cwd-restore/src/shell/herdr-cwd-restore.sh
    ```
    Use an absolute path: the hook runs after the `cd`, so a relative path
    would resolve against the new directory. Herdr injects `HERDR_ENV=1`
@@ -85,14 +85,14 @@ of what Herdr already does.
 6. Verify: restart the Herdr server (or trigger a live handoff), then
    check the hook ran and what it did:
    ```sh
-   herdr plugin log list --plugin herdr-workspace-autosave
+   herdr plugin log list --plugin herdr-cwd-restore
    ```
    Expect `already present ... skipping` lines when nothing is missing.
 
 ## Workspace State file
 
 `projects/workspace-state.toml` inside the plugin config dir
-(`herdr plugin config-dir herdr-workspace-autosave`) is rewritten untouched on every
+(`herdr plugin config-dir herdr-cwd-restore`) is rewritten untouched on every
 subscribed event and every hooked `cd` — never hand-edit it, the next
 change overwrites it anyway:
 
@@ -110,7 +110,7 @@ change overwrites it anyway:
 ## On-demand snapshot
 
 ```sh
-herdr plugin action invoke herdr-workspace-autosave.capture  # rewrite workspace-state.toml now
+herdr plugin action invoke herdr-cwd-restore.capture  # rewrite workspace-state.toml now
 ```
 
 It always rewrites the single state file (rotating the
@@ -150,8 +150,8 @@ in your shell rc is wrong or the rc wasn't re-sourced.
   as the source of truth (missing tabs recreated, wrong-directory tabs
   closed and recreated, exact matches kept).
 - `src/restore.sh` — interpreter wrapper for the `[[startup]]` hook.
-- `src/shell/herdr-workspace-autosave.{fish,zsh,sh}` — optional shell hooks that run
-  the autosave after every `cd` inside Herdr panes.
+- `src/shell/herdr-cwd-restore.{fish,zsh,sh}` — required shell hooks that run
+  the snapshot after every `cd` inside Herdr panes.
 - `test/*.test.js` — unit tests (built-in `node:test`, see Testing).
 
 Each `*.sh` wrapper locates a Node 18+ binary — including nvm install

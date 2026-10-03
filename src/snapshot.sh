@@ -24,5 +24,5 @@ if [ -n "${HOME:-}" ]; then
     fi
   done
 fi
-echo "herdr-workspace-autosave: no Node 18+ interpreter found" >&2
+echo "herdr-cwd-restore: no Node 18+ interpreter found" >&2
 exit 1

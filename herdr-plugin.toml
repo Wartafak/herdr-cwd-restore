@@ -1,6 +1,6 @@
-id = "herdr-workspace-autosave"
-name = "Workspace Autosave"
-version = "0.9.0"
+id = "herdr-cwd-restore"
+name = "Cwd Restore"
+version = "1.0.0"
 min_herdr_version = "0.8.0"
 description = "Track live tab working directories across restarts; restore the correct cwd for every tab on server start"
 platforms = ["linux", "macos", "windows"]
@@ -16,7 +16,7 @@ platforms = ["linux", "macos", "windows"]
 command = ["/bin/sh", "src/restore.sh"]
 
 # Snapshot the live layout into projects/workspace-state.toml on demand:
-# `herdr plugin action invoke herdr-workspace-autosave.capture`. Always
+# `herdr plugin action invoke herdr-cwd-restore.capture`. Always
 # overwrites (rotating the previous file to workspace-state.prev.toml).
 # Ambiguous labels are skipped with a warning -- rename the tab and retry.
 [[actions]]

@@ -6,7 +6,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { ProjectError } = require("./project");
 
-const PLUGIN_ID = "herdr-workspace-autosave";
+const PLUGIN_ID = "herdr-cwd-restore";
 
 function resolveConfigDir() {
   const candidates = [];
