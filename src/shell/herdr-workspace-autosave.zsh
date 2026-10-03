@@ -13,7 +13,7 @@
 __herdr_workspace_autosave_capture() {
   [[ "${HERDR_ENV:-}" == "1" ]] || return 0
   [[ -n "${__herdr_workspace_autosave_capture_sh:-}" ]] || return 0
-  (sh "$__herdr_workspace_autosave_capture_sh" --autosave >/dev/null 2>&1 &!)
+  (sh "$__herdr_workspace_autosave_capture_sh" >/dev/null 2>&1 &!)
 }
 
 autoload -Uz add-zsh-hook

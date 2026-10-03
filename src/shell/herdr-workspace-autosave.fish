@@ -13,5 +13,5 @@
 function __herdr_workspace_autosave_capture --on-variable PWD --description "herdr-workspace-autosave autosave on cd"
     test "$HERDR_ENV" = 1; or return 0
     test -n "$__herdr_workspace_autosave_capture_sh"; or return 0
-    sh $__herdr_workspace_autosave_capture_sh --autosave >/dev/null 2>&1 &
+    sh $__herdr_workspace_autosave_capture_sh >/dev/null 2>&1 &
 end

@@ -12,7 +12,7 @@ Zero-dependency Herdr plugin (Node >= 18, CommonJS). Tracks live tab working dir
 ## Manifest (`herdr-plugin.toml`)
 
 - `[[startup]]` (`src/restore.sh`), `[[actions]]` (`capture`) and all `[[events]]` use `command = ["/bin/sh", "src/<name>.sh", ...]` — manifest arrays get no shell expansion, so keep the `/bin/sh` + wrapper indirection. Never call `node` directly from the manifest.
-- All `[[events]]` run `src/snapshot.sh --autosave`. Do not subscribe `*.focused`, `pane.scroll_changed`, `pane.output_matched`, `pane.agent_status_changed` (high-frequency noise), and `workspace.metadata_updated` never invokes plugin hooks by design.
+- All `[[events]]` run `src/snapshot.sh`. Do not subscribe `*.focused`, `pane.scroll_changed`, `pane.output_matched`, `pane.agent_status_changed` (high-frequency noise), and `workspace.metadata_updated` never invokes plugin hooks by design.
 - Requires Herdr `resume_agents_on_restore = false` (see README Requirements) — restored panes must be plain shells, not resumed agent processes.
 
 ## Code map
@@ -25,7 +25,7 @@ Zero-dependency Herdr plugin (Node >= 18, CommonJS). Tracks live tab working dir
 - `src/snapshot.js` — single-purpose state writer: always renders live state into `projects/workspace-state.toml` (top-level `working_dir` = longest common ancestor; a tab equal to it omits `working_dir`). Same label in different spaces → one tab per space; same label + different dirs in one space (or no readable cwd) → skipped with warning. Always overwrites but rotates the previous snapshot to `workspace-state.prev.toml` first. `--stdout` previews without writing; nothing else is accepted.
 - `src/utils/toml.js` — minimal TOML subset only (`[[tabs]]` + `name`/`working_dir`/`command`/`workspace`, double-quoted via `JSON.stringify` or single-quoted literals). Do not add a TOML library; extend the subset deliberately.
 - `src/*.sh` — locate a Node 18+ binary including nvm dirs (`~/.nvm/versions/node/*/bin/node`) because the server PATH differs from the shell. Test override: `SNAPSHOT_SH_NODE_CANDIDATES` / `OPEN_SH_NODE_CANDIDATES` / `RESTORE_SH_NODE_CANDIDATES`.
-- `src/shell/herdr-workspace-autosave.{fish,zsh,sh}` — required `cd` hooks (install step 5); gate on `HERDR_ENV=1`, run `snapshot.sh --autosave` detached. No Herdr-side cwd-change event exists; the shell hook is the mechanism.
+- `src/shell/herdr-workspace-autosave.{fish,zsh,sh}` — required `cd` hooks (install step 5); gate on `HERDR_ENV=1`, run `snapshot.sh` detached. No Herdr-side cwd-change event exists; the shell hook is the mechanism.
 
 ## Env / paths
 

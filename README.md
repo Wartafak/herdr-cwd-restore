@@ -22,7 +22,7 @@ of what Herdr already does.
 1. Any meaningful layout change (tab created/closed/renamed/moved,
    pane closed, workspace created/closed/renamed/moved/reordered/updated,
    worktree created/opened/removed) fires a `[[events]]` hook that runs
-   `src/snapshot.sh --autosave`, rewriting `projects/workspace-state.toml` with the
+   `src/snapshot.sh`, rewriting `projects/workspace-state.toml` with the
    full cross-space state. High-frequency events (`*.focused`,
    `pane.scroll_changed`, `pane.output_matched`,
    `pane.agent_status_changed`) are deliberately not subscribed, and
@@ -59,7 +59,7 @@ of what Herdr already does.
    herdr plugin action invoke herdr-workspace-autosave.capture
    ```
 5. Hook your shell so every `cd` snapshots — this is the core of the
-   plugin, not an extra. Event hooks cover tab/pane/workspace lifecycle but
+   plugin. Event hooks cover tab/pane/workspace lifecycle but
    never fire on `cd` inside an already-open pane (panes are plain PTYs; no
    documented event fires reliably on cwd change). Without this step the
    plugin only duplicates what Herdr already does.
@@ -89,7 +89,7 @@ of what Herdr already does.
    ```
    Expect `already present ... skipping` lines when nothing is missing.
 
-## Autosave file
+## Workspace State file
 
 `projects/workspace-state.toml` inside the plugin config dir
 (`herdr plugin config-dir herdr-workspace-autosave`) is rewritten untouched on every
@@ -102,7 +102,7 @@ change overwrites it anyway:
 - Same-label-different-dir tabs in one space are skipped with a warning
   (rename the tab so the next save picks it up); the same label in
   different spaces is saved once per space.
-- Every `--autosave` rewrite rotates the previous snapshot to
+- Every rewrite rotates the previous snapshot to
   `projects/workspace-state.prev.toml` first, so one bad capture (e.g. the first
   event after a degraded Herdr restore) never destroys the last good state
   silently.
@@ -113,7 +113,7 @@ change overwrites it anyway:
 herdr plugin action invoke herdr-workspace-autosave.capture  # rewrite workspace-state.toml now
 ```
 
-Takes no arguments — it always rewrites the single state file (rotating the
+It always rewrites the single state file (rotating the
 previous one to `workspace-state.prev.toml` first).
 
 ## Verifying the `cd` hook
