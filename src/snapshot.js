@@ -1,64 +1,52 @@
 "use strict";
-// Snapshot the current Herdr tab state into a project template or the single
-// autosave file.
+// Snapshot the current Herdr tab state into `projects/workspace-state.toml`,
+// the source of truth for the startup restore.
 //
 // This reads the live state via getWorkspaceState()
-// (src/utils/workspace-state.js) and renders a `projects/<name>.toml`
-// scaffold, or the full-state `projects/workspace-state.toml` with `--autosave`.
-// The generated template is a starting point, not a mirror -- edit it freely
-// afterwards (add `command = "..."` per tab, adjust directories, rename the
-// project). The autosave file is rewritten untouched on every event/cd and is
-// the live layout mirror -- never hand-edit it.
+// (src/utils/workspace-state.js) and renders the full cross-space layout.
+// The state file is rewritten untouched on every event/cd -- never hand-edit
+// it. The previous snapshot is rotated to `workspace-state.prev.toml` first,
+// so one bad write never destroys the last good state silently.
 //
 // Usage:
-//     node src/snapshot.js                                     # via action invoke:
-//                                                             # name defaults to the
-//                                                             # slugified workspace label
-//     HERDR_WORKSPACE_AUTOSAVE_PROJECT=<name> node src/snapshot.js       # explicit (direct runs)
-//     node src/snapshot.js <name>                              # direct
-//     node src/snapshot.js <name> --force                      # overwrite existing file
-//     node src/snapshot.js <name> --stdout                     # preview, write nothing
-//     node src/snapshot.js <name> --out /path/to/<name>.toml   # write elsewhere
-//     node src/snapshot.js --autosave                        # event/cd trigger:
-//                                                             # full live state
-//                                                             # into the single
-//                                                             # projects/workspace-state.toml
-//                                                             # (always overwrites)
-//
-// `herdr plugin action invoke` takes no arguments and does not forward the
-// caller's environment, so an invoked capture action always uses the workspace-label
-// default; pass a name explicitly only when running the script directly.
-//
-// The top-level `working_dir` is the longest common ancestor of all captured
-// tab directories; a tab whose directory equals it omits `working_dir`
-// (`open.js` inherits the project base then). Every tab keeps the workspace
-// (space) it was captured from as `workspace = "..."`, so `open.js` rebuilds
-// each space via create-or-reuse instead of dumping everything into the
-// invoking workspace. Ambiguity is judged per space: the same label in the
-// same workspace with different directories (and tabs with no readable cwd)
-// are skipped with a warning -- rename the tab and recapture. The same label
-// in *different* spaces is fine and captured once per space.
+//     node src/snapshot.js            # write the state file (events, cd hook,
+//                                      # capture action)
+//     node src/snapshot.js --stdout   # preview, write nothing
 
 const fs = require("node:fs");
 const path = require("node:path");
 const { tomlString } = require("./utils/toml");
 const { getWorkspaceState, shortenHome, utcStamp } = require("./utils/workspace-state");
-const { resolveConfigDir, defaultProjectName, ProjectError } = require("./open");
+const { resolveConfigDir } = require("./utils/config");
+const { ProjectError } = require("./utils/project");
 
 const PROJECTS_DIR_NAME = "projects";
-// The single auto-saved file: every event and shell cd rewrites the full live
+// The single state file: every event and shell cd rewrites the full live
 // state here, so the live layout survives in a file.
 const STATE_NAME = "workspace-state";
 
 class SnapshotError extends Error {}
 
 function expandHomeOnly(p) {
-  // State entries carry at most a leading `~` (from shortenHome); no $VARS are ever introduced, so only `~` needs expanding
-  // for the common-ancestor computation.
+  // State entries carry at most a leading `~` (from shortenHome); no $VARS
+  // are ever introduced, so only `~` needs expanding for the common-ancestor
+  // computation.
   const home = process.env.HOME || "";
   if (p === "~") return home;
   if (home && p.startsWith("~/")) return home + p.slice(1);
   return p;
+}
+
+function parseArgs(argv) {
+  const args = { stdout: false };
+  for (const arg of argv) {
+    if (arg === "--stdout") args.stdout = true;
+    else {
+      console.error(`snapshot: error: unrecognized arguments: ${arg}`);
+      return null;
+    }
+  }
+  return args;
 }
 
 // Longest common ancestor directory of absolute paths ("/" when unrelated).
@@ -73,53 +61,6 @@ function commonAncestor(dirs) {
   return "/" + common.join("/");
 }
 
-function validProjectName(name) {
-  return (
-    name !== "" &&
-    name !== "." &&
-    name !== ".." &&
-    !name.includes("/") &&
-    !name.includes("\\")
-  );
-}
-
-function parseArgs(argv) {
-  const args = { name: null, force: false, stdout: false, out: null, autosave: false };
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i];
-    if (arg === "--force") args.force = true;
-    else if (arg === "--stdout") args.stdout = true;
-    else if (arg === "--autosave") args.autosave = true;
-    else if (arg === "--out" || arg.startsWith("--out=")) {
-      if (arg.startsWith("--out=")) args.out = arg.slice("--out=".length);
-      else args.out = argv[++i];
-      if (args.out === undefined) {
-        console.error("snapshot: error: argument --out: expected one argument");
-        return null;
-      }
-    } else if (arg.startsWith("--")) {
-      console.error(`snapshot: error: unrecognized arguments: ${arg}`);
-      return null;
-    } else if (args.name === null) {
-      args.name = arg;
-    } else {
-      console.error(`snapshot: error: unrecognized arguments: ${arg}`);
-      return null;
-    }
-  }
-  if (args.autosave && args.name !== null) {
-    console.error("snapshot: error: --autosave takes no project name");
-    return null;
-  }
-  if (args.autosave) {
-    args.name = STATE_NAME;
-    args.force = true; // the autosave file is rewritten on every event
-  } else if (args.name === null) {
-    args.name = process.env.HERDR_WORKSPACE_AUTOSAVE_PROJECT || defaultProjectName();
-  }
-  return args;
-}
-
 // Group flat workspace state into Map<label, rows[]> for collectProjectTabs.
 function groupByLabel(state) {
   const rowsByLabel = new Map();
@@ -130,7 +71,7 @@ function groupByLabel(state) {
   return rowsByLabel;
 }
 
-// Flatten live rows into project tabs, skipping what a template cannot
+// Flatten live rows into project tabs, skipping what a state file cannot
 // express. Grouped by (workspace, label): the same label may appear once per
 // space, each keeping its own `workspace`. Returns { tabs, warnings } with
 // ~-abbreviated working dirs, sorted by workspace then label.
@@ -151,7 +92,7 @@ function collectProjectTabs(rowsByLabel) {
     if (distinctCwds.length > 1) {
       warnings.push(
         `skipping '${label}' in workspace '${workspace}' (${distinctCwds.length} ` +
-          "different directories); rename a tab and recapture"
+          "different directories); rename the tab and re-snapshot"
       );
       continue;
     }
@@ -164,17 +105,13 @@ function collectProjectTabs(rowsByLabel) {
   return { tabs, warnings };
 }
 
-function renderProject(name, baseOut, tabs) {  const recaptureHint =
-    name === STATE_NAME
-      ? "# Regenerated automatically on tab/workspace events and cd."
-      : `# Recapture with: HERDR_WORKSPACE_AUTOSAVE_PROJECT=${name} node src/snapshot.js --force`;
+function renderProject(baseOut, tabs) {
   const lines = [
     `# Generated by herdr-workspace-autosave snapshot from live tab state (${utcStamp()}).`,
-    "# Scaffold for `herdr-workspace-autosave.open`: edit freely -- rename the project,",
-    '# adjust directories, add `command = "..."` per tab.',
-    recaptureHint,
+    "# Mirror of the live layout for the startup restore -- do not hand-edit,",
+    "# it is rewritten untouched on every event and cd.",
     "",
-    `name = ${tomlString(name)}`,
+    `name = ${tomlString(STATE_NAME)}`,
     `working_dir = ${tomlString(baseOut)}`,
     "",
   ];
@@ -189,9 +126,9 @@ function renderProject(name, baseOut, tabs) {  const recaptureHint =
 }
 
 // Best-effort rotation: keep the previous snapshot beside the target
-// (`workspace-state.toml` -> `workspace-state.prev.toml`) so one bad snapshot -- e.g. the
-// first event after a degraded Herdr restore -- never destroys the last
-// good state silently. Failures only warn; the snapshot still proceeds.
+// (`workspace-state.toml` -> `workspace-state.prev.toml`) so one bad write
+// -- e.g. the first event after a degraded Herdr restore -- never destroys
+// the last good state silently. Failures only warn; the snapshot proceeds.
 function rotateBackup(out) {
   let prev;
   if (out.endsWith(".toml")) prev = out.slice(0, -5) + ".prev.toml";
@@ -208,20 +145,11 @@ function rotateBackup(out) {
 function main(argv) {
   const args = parseArgs(argv);
   if (args === null) return 2;
-  if (!args.name) {
-    console.error(
-      "herdr-workspace-autosave: no project name given; set HERDR_WORKSPACE_AUTOSAVE_PROJECT, pass a name, or invoke from a workspace"
-    );
-    return 2;
-  }
   try {
-    if (!validProjectName(args.name)) {
-      throw new SnapshotError(`invalid project name '${args.name}'`);
-    }
     const rowsByLabel = groupByLabel(getWorkspaceState());
     const { tabs, warnings } = collectProjectTabs(rowsByLabel);
     if (tabs.length === 0) {
-      throw new SnapshotError("no capturable tabs open (nothing to snapshot)");
+      throw new SnapshotError("no snapshotable tabs open (nothing to snapshot)");
     }
     const expanded = tabs.map((t) => expandHomeOnly(t.workingDir));
     const baseOut = shortenHome(commonAncestor(expanded));
@@ -229,28 +157,15 @@ function main(argv) {
     for (const tab of tabs) {
       if (expandHomeOnly(tab.workingDir) === baseExpanded) tab.workingDir = null;
     }
-    const text = renderProject(args.name, baseOut, tabs);
+    const text = renderProject(baseOut, tabs);
     for (const warning of warnings) console.error(`snapshot: warning: ${warning}`);
     if (args.stdout) {
       process.stdout.write(text);
       return 0;
     }
-    const out =
-      args.out || path.join(resolveConfigDir(), PROJECTS_DIR_NAME, `${args.name}.toml`);
-    if (!args.force) {
-      try {
-        if (fs.statSync(out).isFile()) {
-          throw new SnapshotError(
-            `refuses to overwrite existing ${out}; pass --force to recapture`
-          );
-        }
-      } catch (error) {
-        if (error instanceof SnapshotError) throw error;
-        // missing -- this is the expected first-snapshot case
-      }
-    }
+    const out = path.join(resolveConfigDir(), PROJECTS_DIR_NAME, `${STATE_NAME}.toml`);
     fs.mkdirSync(path.dirname(out), { recursive: true });
-    if (args.autosave) rotateBackup(out);
+    rotateBackup(out);
     fs.writeFileSync(out, text);
     console.error(`snapshot: wrote ${tabs.length} tab(s) into ${out}`);
     return 0;
@@ -274,7 +189,5 @@ module.exports = {
   commonAncestor,
   renderProject,
   rotateBackup,
-  validProjectName,
-  STATE_NAME,
   SnapshotError,
 };

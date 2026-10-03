@@ -2,7 +2,7 @@ id = "herdr-workspace-autosave"
 name = "Workspace Autosave"
 version = "0.9.0"
 min_herdr_version = "0.8.0"
-description = "Auto-save the full workspace layout to a single project file on every change; open declarative project workspaces on demand"
+description = "Track live tab working directories across restarts; restore the correct cwd for every tab on server start"
 platforms = ["linux", "macos", "windows"]
 
 # Reconcile the restored session with projects/workspace-state.toml (the source of
@@ -15,29 +15,13 @@ platforms = ["linux", "macos", "windows"]
 [[startup]]
 command = ["/bin/sh", "src/restore.sh"]
 
-# Open a declarative project workspace: `herdr plugin action invoke
-# herdr-workspace-autosave.open` (invoke takes no arguments and does not forward the
-# caller's environment, so the project defaults to the slugified workspace
-# label -- e.g. the "My Projects" workspace opens
-# `projects/my-projects.toml`). Reads projects/<name>.toml,
-# creates one tab per [[tabs]] entry natively started in its working_dir via
-# `herdr tab create --cwd`, then runs the entry's command if it has one.
-[[actions]]
-id = "open"
-title = "Open project workspace"
-contexts = ["workspace"]
-command = ["/bin/sh", "src/open.sh"]
-
-# Freeze the current tabs into a reusable project template:
-# `herdr plugin action invoke herdr-workspace-autosave.capture` (same no-argument
-# constraint, so the name defaults to the slugified workspace label).
-# Writes projects/<name>.toml (top-level working_dir = the
-# longest common ancestor of the live tab dirs) and refuses to overwrite an
-# existing file unless capture runs with --force. Ambiguous labels are
-# skipped with a warning -- rename the tab and recapture.
+# Snapshot the live layout into projects/workspace-state.toml on demand:
+# `herdr plugin action invoke herdr-workspace-autosave.capture`. Always
+# overwrites (rotating the previous file to workspace-state.prev.toml).
+# Ambiguous labels are skipped with a warning -- rename the tab and retry.
 [[actions]]
 id = "capture"
-title = "Capture project workspace"
+title = "Snapshot workspace state"
 contexts = ["workspace"]
 command = ["/bin/sh", "src/snapshot.sh"]
 
@@ -51,56 +35,56 @@ command = ["/bin/sh", "src/snapshot.sh"]
 # hooks by design (API subscribers only).
 [[events]]
 on = "tab.created"
-command = ["/bin/sh", "src/snapshot.sh", "--autosave"]
+command = ["/bin/sh", "src/snapshot.sh"]
 
 [[events]]
 on = "tab.closed"
-command = ["/bin/sh", "src/snapshot.sh", "--autosave"]
+command = ["/bin/sh", "src/snapshot.sh"]
 
 [[events]]
 on = "tab.renamed"
-command = ["/bin/sh", "src/snapshot.sh", "--autosave"]
+command = ["/bin/sh", "src/snapshot.sh"]
 
 [[events]]
 on = "tab.moved"
-command = ["/bin/sh", "src/snapshot.sh", "--autosave"]
+command = ["/bin/sh", "src/snapshot.sh"]
 
 [[events]]
 on = "pane.closed"
-command = ["/bin/sh", "src/snapshot.sh", "--autosave"]
+command = ["/bin/sh", "src/snapshot.sh"]
 
 [[events]]
 on = "workspace.created"
-command = ["/bin/sh", "src/snapshot.sh", "--autosave"]
+command = ["/bin/sh", "src/snapshot.sh"]
 
 [[events]]
 on = "workspace.closed"
-command = ["/bin/sh", "src/snapshot.sh", "--autosave"]
+command = ["/bin/sh", "src/snapshot.sh"]
 
 [[events]]
 on = "workspace.renamed"
-command = ["/bin/sh", "src/snapshot.sh", "--autosave"]
+command = ["/bin/sh", "src/snapshot.sh"]
 
 [[events]]
 on = "workspace.moved"
-command = ["/bin/sh", "src/snapshot.sh", "--autosave"]
+command = ["/bin/sh", "src/snapshot.sh"]
 
 [[events]]
 on = "workspace.reordered"
-command = ["/bin/sh", "src/snapshot.sh", "--autosave"]
+command = ["/bin/sh", "src/snapshot.sh"]
 
 [[events]]
 on = "workspace.updated"
-command = ["/bin/sh", "src/snapshot.sh", "--autosave"]
+command = ["/bin/sh", "src/snapshot.sh"]
 
 [[events]]
 on = "worktree.created"
-command = ["/bin/sh", "src/snapshot.sh", "--autosave"]
+command = ["/bin/sh", "src/snapshot.sh"]
 
 [[events]]
 on = "worktree.opened"
-command = ["/bin/sh", "src/snapshot.sh", "--autosave"]
+command = ["/bin/sh", "src/snapshot.sh"]
 
 [[events]]
 on = "worktree.removed"
-command = ["/bin/sh", "src/snapshot.sh", "--autosave"]
+command = ["/bin/sh", "src/snapshot.sh"]

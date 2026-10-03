@@ -3,9 +3,21 @@
 // Herdr-spawning paths (openGroups, closeTab, getWorkspaceState) are covered
 // by live verification instead.
 
-const { describe, it, beforeEach, afterEach } = require("node:test");
+const { describe, it, beforeEach, afterEach, after } = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const { planRestore, liveKey } = require("../src/restore");
+const { loadProject, resolveTabDirs, ProjectError } = require("../src/utils/project");
+const { groupByWorkspace } = require("../src/utils/herdr");
+
+// Fixture writes stay inside the repo (test/.tmp/, git-ignored) under a
+// file-specific subdir; only that subdir is cleaned (whole-dir wipes race
+// with parallel test files).
+const PROJECT_SCRATCH = path.join(__dirname, ".tmp", `restore-${process.pid}`);
+after(() => {
+  fs.rmSync(PROJECT_SCRATCH, { recursive: true, force: true });
+});
 
 let savedHome;
 beforeEach(() => {
@@ -98,5 +110,96 @@ describe("planRestore", () => {
     assert.equal(replace.length, 2);
     assert.deepEqual(keep, []);
     assert.deepEqual(closeIds, []);
+  });
+});
+
+function writeProject(text) {
+  fs.mkdirSync(PROJECT_SCRATCH, { recursive: true });
+  const file = path.join(PROJECT_SCRATCH, `proj-${process.pid}.toml`);
+  fs.writeFileSync(file, text);
+  return file;
+}
+
+describe("loadProject", () => {
+  it("parses name, working_dir and tab entries", () => {
+    const project = loadProject(
+      writeProject(
+        'name = "workspace-state"\nworking_dir = "~/dev"\n\n[[tabs]]\nname = "api"\nworking_dir = "api"\nworkspace = "Space A"\n'
+      )
+    );
+    assert.equal(project.name, "workspace-state");
+    assert.equal(project.workingDir, "~/dev");
+    assert.deepEqual(project.tabs, [
+      { name: "api", workingDir: "api", command: null, workspace: "Space A" },
+    ]);
+  });
+
+  it("rejects missing working_dir, nameless tabs and unknown keys", () => {
+    assert.throws(
+      () => loadProject(writeProject('name = "d"\n')),
+      (e) => e instanceof ProjectError && /missing key 'working_dir'/.test(e.message)
+    );
+    assert.throws(
+      () => loadProject(writeProject('name = "d"\nworking_dir = "/tmp"\n\n[[tabs]]\n')),
+      (e) => e instanceof ProjectError && /missing key 'name'/.test(e.message)
+    );
+    assert.throws(
+      () =>
+        loadProject(
+          writeProject('name = "d"\nworking_dir = "/tmp"\n\n[[tabs]]\nname = "x"\nbogus = "y"\n')
+        ),
+      (e) => e instanceof ProjectError && /invalid TOML/.test(e.message)
+    );
+  });
+});
+
+describe("resolveTabDirs", () => {
+  it("expands ~, resolves relatives against the base, inherits base", () => {
+    const home = path.join(PROJECT_SCRATCH, "home");
+    process.env.HOME = home;
+    const base = path.join(home, "dev");
+    const api = path.join(base, "api");
+    fs.mkdirSync(api, { recursive: true });
+    const resolved = resolveTabDirs({
+      workingDir: "~/dev",
+      dir: home,
+      tabs: [
+        { name: "inherits", workingDir: null },
+        { name: "relative", workingDir: "api" },
+      ],
+    });
+    assert.equal(resolved[0].dir, base);
+    assert.equal(resolved[1].dir, api);
+  });
+
+  it("throws listing every missing directory", () => {
+    assert.throws(
+      () =>
+        resolveTabDirs({
+          workingDir: "/definitely/not/here",
+          dir: "/",
+          tabs: [{ name: "gone", workingDir: null }],
+        }),
+      (e) => e instanceof ProjectError && /missing directories: 'gone'/.test(e.message)
+    );
+  });
+});
+
+describe("groupByWorkspace", () => {
+  it("groups by workspace preserving first-seen order", () => {
+    const groups = groupByWorkspace([
+      { tab: { name: "a", workspace: "B" } },
+      { tab: { name: "b", workspace: null } },
+      { tab: { name: "c", workspace: "A" } },
+      { tab: { name: "d", workspace: "B" } },
+    ]);
+    assert.deepEqual(
+      groups.map((g) => [g.workspace, g.entries.map((e) => e.tab.name)]),
+      [
+        ["B", ["a", "d"]],
+        [null, ["b"]],
+        ["A", ["c"]],
+      ]
+    );
   });
 });

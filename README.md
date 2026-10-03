@@ -17,12 +17,6 @@ startup, recreating any tab Herdr restored into the wrong place. That is the
 whole point: without the `cd` hook below, this plugin is just a second copy
 of what Herdr already does.
 
-Herdr restores the workspace itself on server restart; this plugin keeps a
-live mirror of that layout — every tab/pane/workspace change (plus every
-`cd`) rewrites the whole cross-space state into one file,
-`projects/workspace-state.toml`. What counts is always the current live state:
-previous spaces are simply overwritten by the next snapshot.
-
 ## How it works
 
 1. Any meaningful layout change (tab created/closed/renamed/moved,
@@ -59,13 +53,11 @@ previous spaces are simply overwritten by the next snapshot.
    ```sh
    herdr plugin list
    ```
-4. The autosave file appears on its own after the first tab/workspace
+4. The state file appears on its own after the first tab/workspace
    event — or force one immediately:
    ```sh
    herdr plugin action invoke herdr-workspace-autosave.capture
    ```
-   (Invoked, the name defaults to the slugified workspace label; the
-   automatic file is always `projects/workspace-state.toml` regardless.)
 5. Hook your shell so every `cd` snapshots — this is the core of the
    plugin, not an extra. Event hooks cover tab/pane/workspace lifecycle but
    never fire on `cd` inside an already-open pane (panes are plain PTYs; no
@@ -115,51 +107,14 @@ change overwrites it anyway:
   event after a degraded Herdr restore) never destroys the last good state
   silently.
 
-## Project workspaces (manual templates + on-demand open)
-
-The autosave covers the steady state; project templates cover intent.
-`open` rebuilds a named template from scratch (or appends it), and
-`capture` freezes the current tabs into a named template you can edit
-(add `command` entries, drop tabs, adjust dirs):
-
-```toml
-name = "Shop"
-working_dir = "~/dev/shop"
-
-[[tabs]]
-name = "web"
-workspace = "Shop"       # optional; no workspace → the invoking workspace.
-working_dir = "frontend" # → ~/dev/shop/frontend
-command = "npm run dev"
-
-[[tabs]]
-name = "api"
-workspace = "Shop"
-working_dir = "backend"  # → ~/dev/shop/backend
-command = "make run"
-
-[[tabs]]
-name = "shell"           # no command, no working_dir → empty shell in ~/dev/shop
-```
-
-Named workspaces are reused by exact label when present, otherwise created
-fresh (the default tab Herdr spawns alongside is closed again). Opening is
-append, not sync — invoking twice creates the tabs twice. Every directory
-is verified to exist *before* the first tab is created, so a typo never
-leaves a half-built workspace behind. Unknown projects fail listing the
-available ones.
+## On-demand snapshot
 
 ```sh
-herdr plugin action invoke herdr-workspace-autosave.open     # rebuild (defaults to workspace slug)
-herdr plugin action invoke herdr-workspace-autosave.capture  # freeze current tabs to projects/<slug>.toml
+herdr plugin action invoke herdr-workspace-autosave.capture  # rewrite workspace-state.toml now
 ```
 
-Invoke takes no arguments and never sees your shell's environment, so both
-default to the slugified workspace label — e.g. the "My Projects" workspace
-opens `projects/my-projects.toml`. For an explicit name, run directly:
-`HERDR_WORKSPACE_AUTOSAVE_PROJECT=Shop node src/open.js`,
-`node src/snapshot.js Shop --force` (recapture refuses to overwrite without
-`--force`).
+Takes no arguments — it always rewrites the single state file (rotating the
+previous one to `workspace-state.prev.toml` first).
 
 ## Verifying the `cd` hook
 
@@ -177,22 +132,24 @@ in your shell rc is wrong or the rc wasn't re-sourced.
   `getWorkspaceState()` returns the current layout as
   `[{ tabId, workspace, label, cwd }]` (tab objects expose no cwd, so each
   tab's directory is joined in from the first pane with `foreground_cwd`).
-- `src/utils/toml.js` — minimal TOML reader/writer for the project schema
+- `src/utils/toml.js` — minimal TOML reader/writer for the state file schema
   (Node has no built-in TOML parser).
-- `src/snapshot.js` — renders live state into `projects/<name>.toml`
-  scaffolds, or the single `projects/workspace-state.toml` with `--autosave`
-  (`--stdout` preview, `--out` writes elsewhere, `--force` overwrites).
+- `src/utils/config.js` — plugin config dir resolution (`projects/` lives
+  beneath it).
+- `src/utils/project.js` — state file parsing (`loadProject`) and directory
+  resolution/verification (`resolveTabDirs`).
+- `src/utils/herdr.js` — Herdr mutations: `openGroups` (create tabs grouped
+  by workspace via `herdr tab create --cwd`), `closeTab`, workspace
+  create-or-reuse.
+- `src/snapshot.js` — renders live state into `projects/workspace-state.toml`
+  (`--stdout` previews without writing), rotating the previous file to
+  `workspace-state.prev.toml` first.
 - `src/snapshot.sh` — interpreter wrapper for the event hooks, the shell
   hooks, and the invocable `capture` `[[actions]]` entry.
-- `src/open.js` — project workspace opener: reads `projects/<name>.toml`,
-  creates tabs via `herdr tab create --cwd` and delivers each `command`
-  with `herdr pane run`.
 - `src/restore.js` — startup reconciler: enforces `projects/workspace-state.toml`
   as the source of truth (missing tabs recreated, wrong-directory tabs
   closed and recreated, exact matches kept).
 - `src/restore.sh` — interpreter wrapper for the `[[startup]]` hook.
-- `src/open.sh` — interpreter wrapper for the invocable `open`
-  `[[actions]]` entry.
 - `src/shell/herdr-workspace-autosave.{fish,zsh,sh}` — optional shell hooks that run
   the autosave after every `cd` inside Herdr panes.
 - `test/*.test.js` — unit tests (built-in `node:test`, see Testing).

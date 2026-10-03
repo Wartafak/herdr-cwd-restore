@@ -9,89 +9,55 @@ const fs = require("node:fs");
 const path = require("node:path");
 const {
   parseArgs,
+  groupByLabel,
   collectProjectTabs,
   commonAncestor,
   renderProject,
   rotateBackup,
-  validProjectName,
 } = require("../src/snapshot");
 
 // Rotation fixtures stay inside the repo (test/.tmp/, git-ignored) under a
-// file-specific subdir; only that subdir is cleaned (the whole-dir wipe in
-// open.test.js races with parallel test files).
+// file-specific subdir; only that subdir is cleaned (whole-dir wipes race
+// with parallel test files).
 const ROTATE_SCRATCH = path.join(__dirname, ".tmp", `rotate-${process.pid}`);
 after(() => {
   fs.rmSync(ROTATE_SCRATCH, { recursive: true, force: true });
 });
 
-let savedEnv;
 let savedError;
 beforeEach(() => {
-  savedEnv = {
-    HERDR_WORKSPACE_AUTOSAVE_PROJECT: process.env.HERDR_WORKSPACE_AUTOSAVE_PROJECT,
-    HERDR_PLUGIN_CONTEXT_JSON: process.env.HERDR_PLUGIN_CONTEXT_JSON,
-  };
   // parseArgs failure paths log to stderr; keep test output clean.
   savedError = console.error;
   console.error = () => {};
 });
 afterEach(() => {
-  for (const [key, value] of Object.entries(savedEnv)) {
-    if (value === undefined) delete process.env[key];
-    else process.env[key] = value;
-  }
   console.error = savedError;
 });
 
-describe("validProjectName", () => {
-  it("accepts plain names, rejects paths and dots", () => {
-    assert.equal(validProjectName("myproj"), true);
-    assert.equal(validProjectName("workspace-state"), true);
-    for (const bad of ["", ".", "..", "a/b", "a\\b"]) {
-      assert.equal(validProjectName(bad), false);
-    }
+describe("parseArgs", () => {
+  it("defaults to writing the state file", () => {
+    assert.deepEqual(parseArgs([]), { stdout: false });
+  });
+
+  it("supports --stdout preview", () => {
+    assert.deepEqual(parseArgs(["--stdout"]), { stdout: true });
+  });
+
+  it("rejects anything else", () => {
+    assert.equal(parseArgs(["--bogus"]), null);
+    assert.equal(parseArgs(["somename"]), null);
+    assert.equal(parseArgs(["--force"]), null);
   });
 });
 
-describe("parseArgs", () => {
-  it("parses flags and --out forms", () => {
-    assert.deepEqual(parseArgs(["--force", "--stdout", "myproj"]), {
-      name: "myproj",
-      force: true,
-      stdout: true,
-      out: null,
-      autosave: false,
-    });
-    assert.equal(parseArgs(["--out", "x.toml", "p"]).out, "x.toml");
-    assert.equal(parseArgs(["--out=x.toml", "p"]).out, "x.toml");
-  });
-
-  it("forces name and overwrite for --autosave", () => {
-    assert.deepEqual(parseArgs(["--autosave"]), {
-      name: "workspace-state",
-      force: true,
-      stdout: false,
-      out: null,
-      autosave: true,
-    });
-  });
-
-  it("rejects bad combinations", () => {
-    assert.equal(parseArgs(["--autosave", "other"]), null);
-    assert.equal(parseArgs(["--bogus"]), null);
-    assert.equal(parseArgs(["a", "b"]), null);
-    assert.equal(parseArgs(["--out"]), null);
-  });
-
-  it("falls back to env then workspace slug", () => {
-    delete process.env.HERDR_WORKSPACE_AUTOSAVE_PROJECT;
-    delete process.env.HERDR_PLUGIN_CONTEXT_JSON;
-    assert.equal(parseArgs([]).name, null);
-    process.env.HERDR_WORKSPACE_AUTOSAVE_PROJECT = "from-env";
-    assert.equal(parseArgs([]).name, "from-env");
-    delete process.env.HERDR_WORKSPACE_AUTOSAVE_PROJECT;
-    process.env.HERDR_PLUGIN_CONTEXT_JSON = JSON.stringify({ workspace_label: "My Projects" });
-    assert.equal(parseArgs([]).name, "my-projects");
+describe("groupByLabel", () => {
+  it("groups flat state by label", () => {
+    const grouped = groupByLabel([
+      { workspace: "A", label: "x", cwd: "/a" },
+      { workspace: "B", label: "x", cwd: "/b" },
+    ]);
+    assert.deepEqual([...grouped.keys()], ["x"]);
+    assert.equal(grouped.get("x").length, 2);
   });
 });
 
@@ -180,12 +146,12 @@ describe("rotateBackup", () => {
 
 describe("renderProject", () => {
   it("emits workspace keys and omits inherited dirs", () => {
-    const text = renderProject("demo", "/base", [
+    const text = renderProject("/base", [
       { name: "a", workspace: "Space", workingDir: "/base/a" },
       { name: "b", workspace: "Space", workingDir: null },
       { name: "c", workspace: "", workingDir: "/elsewhere" },
     ]);
-    assert.match(text, /name = "demo"/);
+    assert.match(text, /name = "workspace-state"/);
     assert.match(text, /working_dir = "\/base"/);
     assert.match(text, /name = "a"\nworkspace = "Space"\nworking_dir = "\/base\/a"/);
     const bBlock = text.split("[[tabs]]")[2];
@@ -193,8 +159,7 @@ describe("renderProject", () => {
     assert.ok(!text.split("[[tabs]]")[3].includes("workspace = "));
   });
 
-  it("notes automatic regeneration for the workspace-state file", () => {
-    assert.match(renderProject("workspace-state", "/", []), /Regenerated automatically/);
-    assert.match(renderProject("demo", "/", []), /Recapture with/);
+  it("marks the file as an auto-generated mirror", () => {
+    assert.match(renderProject("/", []), /do not hand-edit/);
   });
 });

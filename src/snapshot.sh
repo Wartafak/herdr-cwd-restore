@@ -3,11 +3,9 @@
 # Same rationale as the other wrappers: the herdr *server* process's PATH can differ
 # from the interactive shell's, so search a candidate list of interpreter
 # names/paths, plus nvm install dirs, and run the first Node 18+ one found.
-# With no arguments this snapshots the live tab state into a project template
-# named after the slugified workspace label
-# (`$HERDR_PLUGIN_CONFIG_DIR/projects/<workspace-slug>.toml`); an explicit
-# name via $HERDR_WORKSPACE_AUTOSAVE_PROJECT or argv replaces the default, and any other
-# arguments are passed straight to snapshot.js.
+# With no arguments this snapshots the live tab state into the single
+# `$HERDR_PLUGIN_CONFIG_DIR/projects/workspace-state.toml`; `--stdout`
+# previews without writing. Any other arguments are rejected by snapshot.js.
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 # SNAPSHOT_SH_NODE_CANDIDATES overrides the search list; used by tests.
 CANDIDATES=${SNAPSHOT_SH_NODE_CANDIDATES:-"node nodejs /opt/homebrew/bin/node /usr/local/bin/node"}

@@ -22,14 +22,9 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { getWorkspaceState, LiveError } = require("./utils/workspace-state");
-const {
-  resolveConfigDir,
-  loadProject,
-  resolveTabDirs,
-  openGroups,
-  closeTab,
-  ProjectError,
-} = require("./open");
+const { resolveConfigDir } = require("./utils/config");
+const { loadProject, resolveTabDirs, ProjectError } = require("./utils/project");
+const { openGroups, closeTab } = require("./utils/herdr");
 
 const PROJECTS_DIR_NAME = "projects";
 const STATE_NAME = "workspace-state";
