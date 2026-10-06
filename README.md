@@ -47,61 +47,45 @@ of what Herdr already does.
 
 ## Install
 
-### Option A — install from GitHub (recommended)
+Check prerequisites first: Herdr >= 0.8.0 and Node >= 18 (`node --version`),
+plus `resume_agents_on_restore = false` in `~/.config/herdr/config.toml`
+(see Requirements — without it, restarts spawn agent processes instead
+of the plain shells this plugin manages).
 
-1. Check prerequisites: Herdr >= 0.8.0 and Node >= 18 (`node --version`),
-   plus `resume_agents_on_restore = false` in `~/.config/herdr/config.toml`
-   (see Requirements — without it, restarts spawn agent processes instead
-   of the plain shells this plugin manages).
-2. Install the plugin:
-   ```sh
-   herdr plugin install Wartafak/herdr-cwd-restore
-   ```
-   Non-interactive / pinned variants:
-   ```sh
-   herdr plugin install Wartafak/herdr-cwd-restore --yes
-   herdr plugin install Wartafak/herdr-cwd-restore --ref <tag-or-sha>
-   ```
-   If you previously linked a local checkout, uninstall/unlink it first —
-   installing over a locally linked plugin is refused:
-   ```sh
-   herdr plugin unlink herdr-cwd-restore
-   ```
-   There is no `plugin update` in Herdr v1 — reinstall to refresh a managed
-   install (`herdr plugin uninstall herdr-cwd-restore`, then install again).
-   Your state under `herdr plugin config-dir herdr-cwd-restore` survives.
-3. Verify the install took cleanly:
+1. Install the plugin — pick one path:
+   - **a. Direct install from GitHub (recommended):**
+     ```sh
+     herdr plugin install Wartafak/herdr-cwd-restore
+     ```
+     Non-interactive / pinned variants:
+     ```sh
+     herdr plugin install Wartafak/herdr-cwd-restore --yes
+     herdr plugin install Wartafak/herdr-cwd-restore --ref <tag-or-sha>
+     ```
+     If you previously linked a local checkout, uninstall/unlink it first —
+     installing over a locally linked plugin is refused:
+     ```sh
+     herdr plugin unlink herdr-cwd-restore
+     ```
+     There is no `plugin update` in Herdr v1 — reinstall to refresh a managed
+     install (`herdr plugin uninstall herdr-cwd-restore`, then install again).
+     Your state under `herdr plugin config-dir herdr-cwd-restore` survives.
+   - **b. Link a local checkout (development):**
+     ```sh
+     herdr plugin link /path/to/herdr-cwd-restore
+     ```
+2. Verify the install took cleanly:
    ```sh
    herdr plugin list --plugin herdr-cwd-restore
    ```
-   then continue at step 4 below (state file) and step 5 (shell hook — still
-   required). For step 5, resolve the managed checkout path with:
-   ```sh
-   herdr plugin list --plugin herdr-cwd-restore --json
-   ```
-   and use its `plugin_root` as `<plugin_root>` in the hook snippets
-   (`<plugin_root>/src/snapshot.sh`,
-   `<plugin_root>/src/shell/herdr-cwd-restore.{fish,zsh,sh}`).
-
-### Option B — link a local checkout (development)
-
-1. Same prerequisites as Option A, step 1.
-2. Link the plugin:
-   ```sh
-   herdr plugin link /path/to/herdr-cwd-restore
-   ```
-   Here `<plugin_root>` below is `/path/to/herdr-cwd-restore` itself.
-3. Verify the link took cleanly:
-   ```sh
-   herdr plugin list --plugin herdr-cwd-restore
-   ```
-
-4. The state file appears on its own after the first tab/workspace
+   then continue at step 3 below (state file) and step 4 (shell hook — still
+   required).
+3. The state file appears on its own after the first tab/workspace
    event — or force one immediately:
    ```sh
    herdr plugin action invoke herdr-cwd-restore.capture
    ```
-5. Hook your shell so every `cd` snapshots — this is the core of the
+4. Hook your shell so every `cd` snapshots — this is the core of the
    plugin. Event hooks cover tab/pane/workspace lifecycle but
    never fire on `cd` inside an already-open pane (panes are plain PTYs; no
    documented event fires reliably on cwd change). Without this step the
@@ -115,9 +99,10 @@ of what Herdr already does.
    # or: <plugin_root>/src/setup-cd-hook.sh fish
    # or: <plugin_root>/src/setup-cd-hook.sh bash
    ```
-   Replace `<plugin_root>` with your managed checkout root (Option A,
-   from `herdr plugin list --plugin herdr-cwd-restore --json`) or your
-   local checkout (Option B). The script targets `~/.zshrc`
+   `<plugin_root>` is your managed checkout root (step 1.a — resolve it with
+   `herdr plugin list --plugin herdr-cwd-restore --json` and use its
+   `plugin_root`) or your local checkout (step 1.b) itself.
+   The script targets `~/.zshrc`
    (`$ZDOTDIR/.zshrc` if set), `~/.bashrc`, or
    `${XDG_CONFIG_HOME:-~/.config}/fish/config.fish`, backs the rc file
    up to `<rc>.bak` before changing it, and derives the plugin root from
@@ -145,7 +130,7 @@ of what Herdr already does.
    Herdr injects `HERDR_ENV=1`
    into every pane's shell, so the hook fires only inside Herdr panes, and
    the snapshot runs fully detached — the prompt never waits on it.
-6. Verify: restart the Herdr server process (not just detach/re-attach the
+5. Verify: restart the Herdr server process (not just detach/re-attach the
    UI — that triggers nothing by design), then
    check the hook ran and what it did:
    ```sh
