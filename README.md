@@ -86,17 +86,20 @@ of the plain shells this plugin manages).
    herdr plugin action invoke herdr-cwd-restore.capture
    ```
 4. Hook your shell so every `cd` snapshots — without this, restores miss
-   directories changed after a tab was opened. Use `fish` or `bash` in
-   place of `zsh` as needed:
-   ```sh
-   # Direct install (step 1.a):
-   sh "$(herdr plugin list --plugin herdr-cwd-restore --json | sed -n 's/.*"plugin_root":"\([^"]*\)".*/\1/p')/setup-cd-hook.sh" zsh
-   # Local checkout (step 1.b):
-   /path/to/herdr-cwd-restore/setup-cd-hook.sh zsh
-   ```
+   directories changed after a tab was opened. Pick the line matching your
+   install path (use `fish` or `bash` in place of `zsh` as needed):
+   - **a. Direct install (step 1.a):**
+     ```sh
+     sh "$(herdr plugin list --plugin herdr-cwd-restore --json | sed -n 's/.*"plugin_root":"\([^"]*\)".*/\1/p')/setup-cd-hook.sh" zsh
+     ```
+     Managed copy missing the script? Reinstall first (step 1.a — Herdr v1
+     has no `plugin update`).
+   - **b. Local checkout (step 1.b):**
+     ```sh
+     /path/to/herdr-cwd-restore/setup-cd-hook.sh zsh
+     ```
    Then re-source your rc file or restart your shell. Re-running is safe
-   (idempotent, backs up to `<rc>.bak`). Managed copy missing the script?
-   Reinstall first (step 1.a — Herdr v1 has no `plugin update`).
+   (idempotent, backs up to `<rc>.bak`).
 5. Verify: restart the Herdr server process (not just detach/re-attach the
    UI — that triggers nothing by design), then
    check the hook ran and what it did:
