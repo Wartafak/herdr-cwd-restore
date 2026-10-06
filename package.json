@@ -4,7 +4,7 @@
   "description": "Herdr plugin: track live tab working directories and restore them on server start",
   "type": "commonjs",
   "scripts": {
-    "test": "node --test test/toml.test.js test/workspace-state.test.js test/snapshot.test.js test/restore.test.js"
+    "test": "node --test test/toml.test.js test/workspace-state.test.js test/snapshot.test.js test/restore.test.js test/setup-cd-hook.test.js"
   },
   "engines": {
     "node": ">=18"

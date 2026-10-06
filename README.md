@@ -106,9 +106,27 @@ of what Herdr already does.
    never fire on `cd` inside an already-open pane (panes are plain PTYs; no
    documented event fires reliably on cwd change). Without this step the
    plugin only duplicates what Herdr already does.
+   Run the setup script with your shell as the required argument
+   (`zsh`, `fish` or `bash`) — it appends the hook lines to your rc file
+   idempotently (re-running never duplicates them, and refreshes the
+   paths if the plugin moved, e.g. after a reinstall):
+   ```sh
+   <plugin_root>/src/setup-cd-hook.sh zsh
+   # or: <plugin_root>/src/setup-cd-hook.sh fish
+   # or: <plugin_root>/src/setup-cd-hook.sh bash
+   ```
    Replace `<plugin_root>` with your managed checkout root (Option A,
    from `herdr plugin list --plugin herdr-cwd-restore --json`) or your
-   local checkout (Option B).
+   local checkout (Option B). The script targets `~/.zshrc`
+   (`$ZDOTDIR/.zshrc` if set), `~/.bashrc`, or
+   `${XDG_CONFIG_HOME:-~/.config}/fish/config.fish`, backs the rc file
+   up to `<rc>.bak` before changing it, and derives the plugin root from
+   its own location unless overridden (`--plugin-root <path>` or
+   `HERDR_CWD_RESTORE_PLUGIN_ROOT`). Then re-source the rc file or
+   restart your shell.
+   Manual equivalent (if you prefer to edit the rc file yourself —
+   use an absolute path: the hook runs after the `cd`, so a relative path
+   would resolve against the new directory):
    ```fish
    # config.fish
    set -g __herdr_cwd_restore_snapshot_sh <plugin_root>/src/snapshot.sh
@@ -124,8 +142,7 @@ of what Herdr already does.
    __herdr_cwd_restore_snapshot_sh=<plugin_root>/src/snapshot.sh
    source <plugin_root>/src/shell/herdr-cwd-restore.sh
    ```
-   Use an absolute path: the hook runs after the `cd`, so a relative path
-   would resolve against the new directory. Herdr injects `HERDR_ENV=1`
+   Herdr injects `HERDR_ENV=1`
    into every pane's shell, so the hook fires only inside Herdr panes, and
    the snapshot runs fully detached — the prompt never waits on it.
 6. Verify: restart the Herdr server process (not just detach/re-attach the
@@ -199,6 +216,9 @@ in your shell rc is wrong or the rc wasn't re-sourced.
 - `src/restore.sh` — interpreter wrapper for the `[[startup]]` hook.
 - `src/shell/herdr-cwd-restore.{fish,zsh,sh}` — required shell hooks that run
   the snapshot after every `cd` inside Herdr panes.
+- `src/setup-cd-hook.sh` — installs the `cd` hook into the shell rc file
+  (`setup-cd-hook.sh zsh|fish|bash`): appends the snapshot-path + source
+  lines idempotently, refreshing stale paths on rerun.
 - `test/*.test.js` — unit tests (built-in `node:test`, see Testing).
 
 Each `*.sh` wrapper locates a Node 18+ binary — including nvm install

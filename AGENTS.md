@@ -4,7 +4,7 @@ Zero-dependency Herdr plugin (Node >= 18, CommonJS). Tracks live tab working dir
 
 ## Commands
 
-- `npm test` — runs exactly `test/toml.test.js test/workspace-state.test.js test/open.test.js test/snapshot.test.js test/restore.test.js` via `node --test`. No jest, no deps.
+- `npm test` — runs exactly `test/toml.test.js test/workspace-state.test.js test/snapshot.test.js test/restore.test.js test/setup-cd-hook.test.js` via `node --test`. No jest, no deps.
 - Single file: `node --test test/<name>.test.js`.
 - Test fixtures go under file-specific subdirs of `test/.tmp/` only (git-ignored). Never wipe the whole dir in `after()` — test files run in parallel processes and whole-dir wipes race. Never write fixtures outside the repo.
 - Live Herdr calls (`getWorkspaceState`, `tab create`, `pane run`, `tab close`) are verified against a real server, not mocked — don't add mocks for them.
@@ -24,7 +24,8 @@ Zero-dependency Herdr plugin (Node >= 18, CommonJS). Tracks live tab working dir
 - `src/restore.js` — startup reconciler, `workspace-state.toml` is the source of truth. Per (workspace, label) entry: absent → created; exact single match → kept; wrong dir / duplicate / unreadable cwd → closed via `herdr tab close` then recreated through `openGroups`. Verifies all dirs before closing or creating anything. No state file → exit 0, skip.
 - `src/snapshot.js` — single-purpose state writer: always renders live state into `projects/workspace-state.toml` (top-level `working_dir` = longest common ancestor; a tab equal to it omits `working_dir`). Same label in different spaces → one tab per space; same label + different dirs in one space (or no readable cwd) → skipped with warning. Always overwrites but rotates the previous snapshot to `workspace-state.prev.toml` first. `--stdout` previews without writing; nothing else is accepted.
 - `src/utils/toml.js` — minimal TOML subset only (`[[tabs]]` + `name`/`working_dir`/`command`/`workspace`, double-quoted via `JSON.stringify` or single-quoted literals). Do not add a TOML library; extend the subset deliberately.
-- `src/*.sh` — locate a Node 18+ binary including nvm dirs (`~/.nvm/versions/node/*/bin/node`) because the server PATH differs from the shell. Test override: `SNAPSHOT_SH_NODE_CANDIDATES` / `OPEN_SH_NODE_CANDIDATES` / `RESTORE_SH_NODE_CANDIDATES`.
+- `src/*.sh` (except `setup-cd-hook.sh`) — locate a Node 18+ binary including nvm dirs (`~/.nvm/versions/node/*/bin/node`) because the server PATH differs from the shell. Test override: `SNAPSHOT_SH_NODE_CANDIDATES` / `OPEN_SH_NODE_CANDIDATES` / `RESTORE_SH_NODE_CANDIDATES`.
+- `src/setup-cd-hook.sh` — pure POSIX sh (no Node): `setup-cd-hook.sh zsh|fish|bash [--plugin-root PATH]` appends the `cd` hook lines to the shell rc file idempotently (backs up to `<rc>.bak`, refreshes stale paths on rerun). Tested via `test/setup-cd-hook.test.js` with an isolated HOME.
 - `src/shell/herdr-cwd-restore.{fish,zsh,sh}` — required `cd` hooks (install step 5); gate on `HERDR_ENV=1`, run `snapshot.sh` detached. No Herdr-side cwd-change event exists; the shell hook is the mechanism.
 
 ## Env / paths
