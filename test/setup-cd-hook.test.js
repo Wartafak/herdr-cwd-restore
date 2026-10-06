@@ -1,5 +1,5 @@
 "use strict";
-// Tests for src/setup-cd-hook.sh: installs the `cd` hook lines into the shell
+// Tests for setup-cd-hook.sh: installs the `cd` hook lines into the shell
 // rc file idempotently. The script is exercised as a subprocess with an
 // isolated HOME (and XDG_CONFIG_HOME / ZDOTDIR) so it never touches the
 // real user files. The plugin root defaults to this checkout, which already
@@ -11,7 +11,7 @@ const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const SETUP_HOOK = path.join(__dirname, "..", "src", "setup-cd-hook.sh");
+const SETUP_HOOK = path.join(__dirname, "..", "setup-cd-hook.sh");
 // Fixtures stay inside the repo (test/.tmp/, git-ignored) under a
 // file-specific subdir; only that subdir is cleaned (whole-dir wipes race
 // with parallel test files).

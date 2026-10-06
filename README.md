@@ -95,13 +95,18 @@ of the plain shells this plugin manages).
    idempotently (re-running never duplicates them, and refreshes the
    paths if the plugin moved, e.g. after a reinstall):
    ```sh
-   <plugin_root>/src/setup-cd-hook.sh zsh
-   # or: <plugin_root>/src/setup-cd-hook.sh fish
-   # or: <plugin_root>/src/setup-cd-hook.sh bash
+   # Direct install (step 1.a) — resolves the managed checkout path itself,
+   # so you never type it (use fish or bash in place of zsh as needed):
+   sh "$(herdr plugin list --plugin herdr-cwd-restore --json | sed -n 's/.*"plugin_root":"\([^"]*\)".*/\1/p')/setup-cd-hook.sh" zsh
+   # Local checkout (step 1.b) — run the script from the checkout itself:
+   /path/to/herdr-cwd-restore/setup-cd-hook.sh zsh
    ```
-   `<plugin_root>` is your managed checkout root (step 1.a — resolve it with
-   `herdr plugin list --plugin herdr-cwd-restore --json` and use its
-   `plugin_root`) or your local checkout (step 1.b) itself.
+   If the managed copy has no `setup-cd-hook.sh` (installed before the script
+   existed — there is no `plugin update` in Herdr v1), reinstall it first
+   (step 1.a). Prefer an explicit path? `<plugin_root>/setup-cd-hook.sh zsh`
+   works too, with `<plugin_root>` as the `plugin_root` from
+   `herdr plugin list --plugin herdr-cwd-restore --json` (step 1.a) or your
+   checkout (step 1.b); `--plugin-root <path>` points the hook elsewhere.
    The script targets `~/.zshrc`
    (`$ZDOTDIR/.zshrc` if set), `~/.bashrc`, or
    `${XDG_CONFIG_HOME:-~/.config}/fish/config.fish`, backs the rc file
@@ -201,12 +206,12 @@ in your shell rc is wrong or the rc wasn't re-sourced.
 - `src/restore.sh` — interpreter wrapper for the `[[startup]]` hook.
 - `src/shell/herdr-cwd-restore.{fish,zsh,sh}` — required shell hooks that run
   the snapshot after every `cd` inside Herdr panes.
-- `src/setup-cd-hook.sh` — installs the `cd` hook into the shell rc file
+- `setup-cd-hook.sh` — installs the `cd` hook into the shell rc file
   (`setup-cd-hook.sh zsh|fish|bash`): appends the snapshot-path + source
   lines idempotently, refreshing stale paths on rerun.
 - `test/*.test.js` — unit tests (built-in `node:test`, see Testing).
 
-Each `*.sh` wrapper locates a Node 18+ binary — including nvm install
+Each `src/*.sh` wrapper locates a Node 18+ binary — including nvm install
 dirs, which the server's PATH doesn't see — because manifest `command`
 arrays get no shell expansion.
 

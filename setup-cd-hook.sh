@@ -6,7 +6,7 @@
 # Appends the two hook lines (snapshot path + source) to the shell's rc file
 # idempotently: re-running never duplicates them, and refreshes the paths when
 # the plugin root moved (e.g. after reinstalling a managed plugin elsewhere).
-# The plugin root defaults to this checkout (parent of this script's dir) and
+# The plugin root defaults to this checkout (this script's dir) and
 # can be overridden with --plugin-root or HERDR_CWD_RESTORE_PLUGIN_ROOT.
 #
 #   zsh  -> ${ZDOTDIR:-$HOME}/.zshrc
@@ -20,7 +20,7 @@ usage() {
 }
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-DEFAULT_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+DEFAULT_ROOT="$SCRIPT_DIR"
 PLUGIN_ROOT="${HERDR_CWD_RESTORE_PLUGIN_ROOT:-$DEFAULT_ROOT}"
 PLUGIN_ROOT_EXPLICIT=0
 case "${HERDR_CWD_RESTORE_PLUGIN_ROOT:-}" in
