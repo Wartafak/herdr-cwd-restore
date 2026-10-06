@@ -85,56 +85,18 @@ of the plain shells this plugin manages).
    ```sh
    herdr plugin action invoke herdr-cwd-restore.capture
    ```
-4. Hook your shell so every `cd` snapshots — this is the core of the
-   plugin. Event hooks cover tab/pane/workspace lifecycle but
-   never fire on `cd` inside an already-open pane (panes are plain PTYs; no
-   documented event fires reliably on cwd change). Without this step the
-   plugin only duplicates what Herdr already does.
-   Run the setup script with your shell as the required argument
-   (`zsh`, `fish` or `bash`) — it appends the hook lines to your rc file
-   idempotently (re-running never duplicates them, and refreshes the
-   paths if the plugin moved, e.g. after a reinstall):
+4. Hook your shell so every `cd` snapshots — without this, restores miss
+   directories changed after a tab was opened. Use `fish` or `bash` in
+   place of `zsh` as needed:
    ```sh
-   # Direct install (step 1.a) — resolves the managed checkout path itself,
-   # so you never type it (use fish or bash in place of zsh as needed):
+   # Direct install (step 1.a):
    sh "$(herdr plugin list --plugin herdr-cwd-restore --json | sed -n 's/.*"plugin_root":"\([^"]*\)".*/\1/p')/setup-cd-hook.sh" zsh
-   # Local checkout (step 1.b) — run the script from the checkout itself:
+   # Local checkout (step 1.b):
    /path/to/herdr-cwd-restore/setup-cd-hook.sh zsh
    ```
-   If the managed copy has no `setup-cd-hook.sh` (installed before the script
-   existed — there is no `plugin update` in Herdr v1), reinstall it first
-   (step 1.a). Prefer an explicit path? `<plugin_root>/setup-cd-hook.sh zsh`
-   works too, with `<plugin_root>` as the `plugin_root` from
-   `herdr plugin list --plugin herdr-cwd-restore --json` (step 1.a) or your
-   checkout (step 1.b); `--plugin-root <path>` points the hook elsewhere.
-   The script targets `~/.zshrc`
-   (`$ZDOTDIR/.zshrc` if set), `~/.bashrc`, or
-   `${XDG_CONFIG_HOME:-~/.config}/fish/config.fish`, backs the rc file
-   up to `<rc>.bak` before changing it, and derives the plugin root from
-   its own location unless overridden (`--plugin-root <path>` or
-   `HERDR_CWD_RESTORE_PLUGIN_ROOT`). Then re-source the rc file or
-   restart your shell.
-   Manual equivalent (if you prefer to edit the rc file yourself —
-   use an absolute path: the hook runs after the `cd`, so a relative path
-   would resolve against the new directory):
-   ```fish
-   # config.fish
-   set -g __herdr_cwd_restore_snapshot_sh <plugin_root>/src/snapshot.sh
-   source <plugin_root>/src/shell/herdr-cwd-restore.fish
-   ```
-   ```zsh
-   # .zshrc
-   __herdr_cwd_restore_snapshot_sh=<plugin_root>/src/snapshot.sh
-   source <plugin_root>/src/shell/herdr-cwd-restore.zsh
-   ```
-   ```sh
-   # .bashrc (wraps cd; delegates to the builtin, captures only on success)
-   __herdr_cwd_restore_snapshot_sh=<plugin_root>/src/snapshot.sh
-   source <plugin_root>/src/shell/herdr-cwd-restore.sh
-   ```
-   Herdr injects `HERDR_ENV=1`
-   into every pane's shell, so the hook fires only inside Herdr panes, and
-   the snapshot runs fully detached — the prompt never waits on it.
+   Then re-source your rc file or restart your shell. Re-running is safe
+   (idempotent, backs up to `<rc>.bak`). Managed copy missing the script?
+   Reinstall first (step 1.a — Herdr v1 has no `plugin update`).
 5. Verify: restart the Herdr server process (not just detach/re-attach the
    UI — that triggers nothing by design), then
    check the hook ran and what it did:
