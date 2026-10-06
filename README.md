@@ -8,6 +8,11 @@
 Keep the full Herdr workspace layout in a single auto-saved project file —
 and fix working-directory restoration.
 
+> **Scope: server restarts only.** This plugin only acts on Herdr server
+> start (the `[[startup]]` hook). Detaching / re-attaching the Herdr UI
+> triggers nothing — Herdr already keeps everything across detach/attach
+> exactly as it was, including agent sessions.
+
 Herdr restores the workspace itself on server restart, but it only remembers
 the directory each tab was *created* in: `cd` to another directory afterwards
 and the new location is forgotten. This plugin tracks where your tabs
@@ -30,29 +35,67 @@ of what Herdr already does.
 2. The required shell hooks (install step 5) do the same after every `cd`,
    so the file also tracks directory changes inside already-open panes —
    the gap Herdr alone leaves behind.
-3. On every server start (and live-handoff takeover) a `[[startup]]` hook
+3. On every server start (including a live-handoff takeover, i.e. a new
+   server process taking over — not a UI detach/attach) a `[[startup]]` hook
    runs `src/restore.sh`, which reconciles the restored session with
    `projects/workspace-state.toml` as the source of truth: autosave entries missing
    live are recreated, entries already present in the saved directory are
    kept, and entries Herdr restored into the wrong directory (or duplicated)
    are closed and recreated from the saved definition. All directories are
-   verified before anything is closed or created.
+   verified before anything is closed or created. A UI detach/attach never
+   reaches this step.
 
 ## Install
+
+### Option A — install from GitHub (recommended)
 
 1. Check prerequisites: Herdr >= 0.8.0 and Node >= 18 (`node --version`),
    plus `resume_agents_on_restore = false` in `~/.config/herdr/config.toml`
    (see Requirements — without it, restarts spawn agent processes instead
    of the plain shells this plugin manages).
+2. Install the plugin:
+   ```sh
+   herdr plugin install Wartafak/herdr-cwd-restore
+   ```
+   Non-interactive / pinned variants:
+   ```sh
+   herdr plugin install Wartafak/herdr-cwd-restore --yes
+   herdr plugin install Wartafak/herdr-cwd-restore --ref <tag-or-sha>
+   ```
+   If you previously linked a local checkout, uninstall/unlink it first —
+   installing over a locally linked plugin is refused:
+   ```sh
+   herdr plugin unlink herdr-cwd-restore
+   ```
+   There is no `plugin update` in Herdr v1 — reinstall to refresh a managed
+   install (`herdr plugin uninstall herdr-cwd-restore`, then install again).
+   Your state under `herdr plugin config-dir herdr-cwd-restore` survives.
+3. Verify the install took cleanly:
+   ```sh
+   herdr plugin list --plugin herdr-cwd-restore
+   ```
+   then continue at step 4 below (state file) and step 5 (shell hook — still
+   required). For step 5, resolve the managed checkout path with:
+   ```sh
+   herdr plugin list --plugin herdr-cwd-restore --json
+   ```
+   and use its `plugin_root` as `<plugin_root>` in the hook snippets
+   (`<plugin_root>/src/snapshot.sh`,
+   `<plugin_root>/src/shell/herdr-cwd-restore.{fish,zsh,sh}`).
+
+### Option B — link a local checkout (development)
+
+1. Same prerequisites as Option A, step 1.
 2. Link the plugin:
    ```sh
    herdr plugin link /path/to/herdr-cwd-restore
    ```
-3. Verify the link took cleanly — the `warnings` field must be empty
-   (it surfaces bad `[[events]]` names or manifest problems):
+   Here `<plugin_root>` below is `/path/to/herdr-cwd-restore` itself.
+3. Verify the link took cleanly:
    ```sh
-   herdr plugin list
+   herdr plugin list --plugin herdr-cwd-restore
    ```
+
 4. The state file appears on its own after the first tab/workspace
    event — or force one immediately:
    ```sh
@@ -63,26 +106,30 @@ of what Herdr already does.
    never fire on `cd` inside an already-open pane (panes are plain PTYs; no
    documented event fires reliably on cwd change). Without this step the
    plugin only duplicates what Herdr already does.
+   Replace `<plugin_root>` with your managed checkout root (Option A,
+   from `herdr plugin list --plugin herdr-cwd-restore --json`) or your
+   local checkout (Option B).
    ```fish
    # config.fish
-   set -g __herdr_cwd_restore_snapshot_sh /path/to/herdr-cwd-restore/src/snapshot.sh
-   source /path/to/herdr-cwd-restore/src/shell/herdr-cwd-restore.fish
+   set -g __herdr_cwd_restore_snapshot_sh <plugin_root>/src/snapshot.sh
+   source <plugin_root>/src/shell/herdr-cwd-restore.fish
    ```
    ```zsh
    # .zshrc
-   __herdr_cwd_restore_snapshot_sh=/path/to/herdr-cwd-restore/src/snapshot.sh
-   source /path/to/herdr-cwd-restore/src/shell/herdr-cwd-restore.zsh
+   __herdr_cwd_restore_snapshot_sh=<plugin_root>/src/snapshot.sh
+   source <plugin_root>/src/shell/herdr-cwd-restore.zsh
    ```
    ```sh
    # .bashrc (wraps cd; delegates to the builtin, captures only on success)
-   __herdr_cwd_restore_snapshot_sh=/path/to/herdr-cwd-restore/src/snapshot.sh
-   source /path/to/herdr-cwd-restore/src/shell/herdr-cwd-restore.sh
+   __herdr_cwd_restore_snapshot_sh=<plugin_root>/src/snapshot.sh
+   source <plugin_root>/src/shell/herdr-cwd-restore.sh
    ```
    Use an absolute path: the hook runs after the `cd`, so a relative path
    would resolve against the new directory. Herdr injects `HERDR_ENV=1`
    into every pane's shell, so the hook fires only inside Herdr panes, and
    the snapshot runs fully detached — the prompt never waits on it.
-6. Verify: restart the Herdr server (or trigger a live handoff), then
+6. Verify: restart the Herdr server process (not just detach/re-attach the
+   UI — that triggers nothing by design), then
    check the hook ran and what it did:
    ```sh
    herdr plugin log list --plugin herdr-cwd-restore
