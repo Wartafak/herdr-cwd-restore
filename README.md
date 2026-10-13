@@ -1,6 +1,11 @@
 # herdr-cwd-restore
 
-> **Requires `resume_agents_on_restore = false`** in `~/.config/herdr/config.toml`
+> Requires 
+>```toml
+>[session]
+>resume_agents_on_restore = false
+>  ```
+> in `~/.config/herdr/config.toml`
 > (see Requirements below). Restored panes must come back as plain shells —
 > with native agent session restore on, Herdr spawns agent processes this
 > plugin would only have to tear down again.
@@ -50,7 +55,8 @@ of what Herdr already does.
 Check prerequisites first: Herdr >= 0.8.0 and Node >= 18 (`node --version`),
 plus `resume_agents_on_restore = false` in `~/.config/herdr/config.toml`
 (see Requirements — without it, restarts spawn agent processes instead
-of the plain shells this plugin manages).
+of the plain shells this plugin manages). Step 4's `setup.sh`
+sets that flag for you idempotently; only set it by hand if you skip step 4.
 
 1. Install the plugin — pick one path:
    - **a. Direct install from GitHub (recommended):**
@@ -90,13 +96,13 @@ of the plain shells this plugin manages).
    install path (use `fish` or `bash` in place of `zsh` as needed):
    - **a. Direct install (step 1.a):**
      ```sh
-     sh "$(herdr plugin list --plugin herdr-cwd-restore --json | sed -n 's/.*"plugin_root":"\([^"]*\)".*/\1/p')/setup-cd-hook.sh" zsh
+     sh "$(herdr plugin list --plugin herdr-cwd-restore --json | sed -n 's/.*"plugin_root":"\([^"]*\)".*/\1/p')/setup.sh" zsh
      ```
      Managed copy missing the script? Reinstall first (step 1.a — Herdr v1
      has no `plugin update`).
    - **b. Local checkout (step 1.b):**
      ```sh
-     /path/to/herdr-cwd-restore/setup-cd-hook.sh zsh
+     /path/to/herdr-cwd-restore/setup.sh zsh
      ```
    Then re-source your rc file or restart your shell. Re-running is safe
    (idempotent, backs up to `<rc>.bak`).
@@ -171,9 +177,12 @@ in your shell rc is wrong or the rc wasn't re-sourced.
 - `src/restore.sh` — interpreter wrapper for the `[[startup]]` hook.
 - `src/shell/herdr-cwd-restore.{fish,zsh,sh}` — required shell hooks that run
   the snapshot after every `cd` inside Herdr panes.
-- `setup-cd-hook.sh` — installs the `cd` hook into the shell rc file
-  (`setup-cd-hook.sh zsh|fish|bash`): appends the snapshot-path + source
-  lines idempotently, refreshing stale paths on rerun.
+- `setup.sh` — installs the `cd` hook into the shell rc file
+  (`setup.sh zsh|fish|bash`): appends the snapshot-path + source
+  lines idempotently, refreshing stale paths on rerun, and ensures
+  `resume_agents_on_restore = false` under `[session]` in the Herdr server
+  config (`${XDG_CONFIG_HOME:-$HOME/.config}/herdr/config.toml`, or
+  `$HERDR_CONFIG_FILE` when set).
 - `test/*.test.js` — unit tests (built-in `node:test`, see Testing).
 
 Each `src/*.sh` wrapper locates a Node 18+ binary — including nvm install
