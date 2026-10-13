@@ -9,6 +9,14 @@ Zero-dependency Herdr plugin (Node >= 18, CommonJS). Tracks live tab working dir
 - Test fixtures go under file-specific subdirs of `test/.tmp/` only (git-ignored). Never wipe the whole dir in `after()` — test files run in parallel processes and whole-dir wipes race. Never write fixtures outside the repo.
 - Live Herdr calls (`getWorkspaceState`, `tab create`, `pane run`, `tab close`) are verified against a real server, not mocked — don't add mocks for them.
 
+## Versioning (`package.json` + `herdr-plugin.toml`)
+
+- Bump the version with every user-visible change, following semver.
+  Keep `package.json` and `herdr-plugin.toml` in lockstep (same version):
+  - patch — bug fixes.
+  - minor — new features or behaviour changes.
+  - major — complete reworks or breaking changes.
+
 ## Manifest (`herdr-plugin.toml`)
 
 - `[[startup]]` (`src/restore.sh`), `[[actions]]` (`capture`) and all `[[events]]` use `command = ["/bin/sh", "src/<name>.sh", ...]` — manifest arrays get no shell expansion, so keep the `/bin/sh` + wrapper indirection. Never call `node` directly from the manifest.

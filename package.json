@@ -1,6 +1,6 @@
 {
   "name": "herdr-cwd-restore",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Herdr plugin: track live tab working directories and restore them on server start",
   "type": "commonjs",
   "scripts": {
