@@ -5,8 +5,9 @@
 // This reads the live state via getWorkspaceState()
 // (src/utils/workspace-state.js) and renders the full cross-space layout.
 // The state file is rewritten untouched on every event/cd -- never hand-edit
-// it. The previous snapshot is rotated to `workspace-state.prev.toml` first,
-// so one bad write never destroys the last good state silently.
+// it. Changed layouts are appended to a timestamped history
+// (`projects/history/`, newest 50 kept) so an older state can be restored by
+// copying it back over `workspace-state.toml`.
 //
 // Usage:
 //     node src/snapshot.js            # write the state file (events, cd hook,
@@ -24,6 +25,10 @@ const PROJECTS_DIR_NAME = "projects";
 // The single state file: every event and shell cd rewrites the full live
 // state here, so the live layout survives in a file.
 const STATE_NAME = "workspace-state";
+// Changed layouts accumulate here as timestamped copies; revert by copying
+// one back over the state file. Only the newest HISTORY_KEEP are kept.
+const HISTORY_DIR_NAME = "history";
+const HISTORY_KEEP = 50;
 
 class SnapshotError extends Error {}
 
@@ -125,20 +130,51 @@ function renderProject(baseOut, tabs) {
   return lines.join("\n").replace(/\s+$/, "") + "\n";
 }
 
-// Best-effort rotation: keep the previous snapshot beside the target
-// (`workspace-state.toml` -> `workspace-state.prev.toml`) so one bad write
-// -- e.g. the first event after a degraded Herdr restore -- never destroys
-// the last good state silently. Failures only warn; the snapshot proceeds.
-function rotateBackup(out) {
-  let prev;
-  if (out.endsWith(".toml")) prev = out.slice(0, -5) + ".prev.toml";
-  else prev = `${out}.prev`;
+// Filename-safe UTC stamp: ISO-8601 with `:` and `.` replaced (colons are
+// illegal in Windows file names). Lexicographically sortable, so the newest
+// entries sort last and pruning keeps the newest HISTORY_KEEP.
+function historyStamp() {
+  return new Date().toISOString().replace(/[:.]/g, "-");
+}
+
+// Semantic content for change detection: the rendered file embeds a
+// generation timestamp in its leading `#` comment lines, so full-text
+// comparison would never match. Strip those to compare the actual layout.
+function comparable(text) {
+  return text
+    .split("\n")
+    .filter((line) => !line.startsWith("#"))
+    .join("\n");
+}
+
+function historyEntries(dir) {
+  return fs
+    .readdirSync(dir)
+    .filter((f) => f.startsWith(`${STATE_NAME}-`) && f.endsWith(".toml"))
+    .sort();
+}
+
+// Append-only history beside the state file (`projects/history/`): copy the
+// new layout into a timestamped entry -- but only when the layout actually
+// changed, so the HISTORY_KEEP slots hold genuinely different states instead
+// of one entry per cd. Then prune to the newest HISTORY_KEEP entries.
+// Failures only warn; the snapshot itself has already succeeded.
+function recordHistory(out, text) {
   try {
-    if (fs.statSync(out).isFile()) {
-      fs.copyFileSync(out, prev);
+    const dir = path.join(path.dirname(out), HISTORY_DIR_NAME);
+    fs.mkdirSync(dir, { recursive: true });
+    const entries = historyEntries(dir);
+    if (entries.length > 0) {
+      const latest = fs.readFileSync(path.join(dir, entries[entries.length - 1]), "utf8");
+      if (comparable(latest) === comparable(text)) return;
+    }
+    fs.writeFileSync(path.join(dir, `${STATE_NAME}-${historyStamp()}.toml`), text);
+    const after = historyEntries(dir);
+    for (const old of after.slice(0, Math.max(0, after.length - HISTORY_KEEP))) {
+      fs.rmSync(path.join(dir, old));
     }
   } catch (error) {
-    console.error(`snapshot: warning: could not rotate backup ${prev}: ${error.message}`);
+    console.error(`snapshot: warning: could not record history: ${error.message}`);
   }
 }
 
@@ -165,8 +201,8 @@ function main(argv) {
     }
     const out = path.join(resolveConfigDir(), PROJECTS_DIR_NAME, `${STATE_NAME}.toml`);
     fs.mkdirSync(path.dirname(out), { recursive: true });
-    rotateBackup(out);
     fs.writeFileSync(out, text);
+    recordHistory(out, text);
     console.error(`snapshot: wrote ${tabs.length} tab(s) into ${out}`);
     return 0;
   } catch (error) {
@@ -188,6 +224,7 @@ module.exports = {
   collectProjectTabs,
   commonAncestor,
   renderProject,
-  rotateBackup,
+  recordHistory,
+  HISTORY_KEEP,
   SnapshotError,
 };

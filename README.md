@@ -1,14 +1,10 @@
 # herdr-cwd-restore
 
-> Requires 
->```toml
->[session]
->resume_agents_on_restore = false
->  ```
-> in `~/.config/herdr/config.toml`
-> (see Requirements below). Restored panes must come back as plain shells —
-> with native agent session restore on, Herdr spawns agent processes this
-> plugin would only have to tear down again.
+> **Requires** `resume_agents_on_restore = false` under `[session]` in
+> `~/.config/herdr/config.toml` (see Requirements below) — Install's `setup.sh`
+> sets it for you. Restored panes must come back as plain shells: with native
+> agent session restore on, Herdr spawns agent processes this plugin would
+> only have to tear down again.
 
 Keep the full Herdr workspace layout in a single auto-saved project file —
 and fix working-directory restoration.
@@ -37,9 +33,9 @@ of what Herdr already does.
    `pane.scroll_changed`, `pane.output_matched`,
    `pane.agent_status_changed`) are deliberately not subscribed, and
    `workspace.metadata_updated` never invokes plugin hooks by design.
-2. The required shell hooks (install step 5) do the same after every `cd`,
-   so the file also tracks directory changes inside already-open panes —
-   the gap Herdr alone leaves behind.
+2. The required shell hooks (installed by `setup.sh`, see Install) do the
+   same after every `cd`, so the file also tracks directory changes inside
+   already-open panes — the gap Herdr alone leaves behind.
 3. On every server start (including a live-handoff takeover, i.e. a new
    server process taking over — not a UI detach/attach) a `[[startup]]` hook
    runs `src/restore.sh`, which reconciles the restored session with
@@ -52,67 +48,77 @@ of what Herdr already does.
 
 ## Install
 
-Check prerequisites first: Herdr >= 0.8.0 and Node >= 18 (`node --version`),
-plus `resume_agents_on_restore = false` in `~/.config/herdr/config.toml`
-(see Requirements — without it, restarts spawn agent processes instead
-of the plain shells this plugin manages). Step 4's `setup.sh`
-sets that flag for you idempotently; only set it by hand if you skip step 4.
+Prerequisites: Herdr >= 0.8.0 and Node >= 18 (see Requirements).
 
-1. Install the plugin — pick one path:
-   - **a. Direct install from GitHub (recommended):**
-     ```sh
-     herdr plugin install Wartafak/herdr-cwd-restore
-     ```
-     Non-interactive / pinned variants:
-     ```sh
-     herdr plugin install Wartafak/herdr-cwd-restore --yes
-     herdr plugin install Wartafak/herdr-cwd-restore --ref <tag-or-sha>
-     ```
-     If you previously linked a local checkout, uninstall/unlink it first —
-     installing over a locally linked plugin is refused:
-     ```sh
-     herdr plugin unlink herdr-cwd-restore
-     ```
-     There is no `plugin update` in Herdr v1 — reinstall to refresh a managed
-     install (`herdr plugin uninstall herdr-cwd-restore`, then install again).
-     Your state under `herdr plugin config-dir herdr-cwd-restore` survives.
-   - **b. Link a local checkout (development):**
-     ```sh
-     herdr plugin link /path/to/herdr-cwd-restore
-     ```
-2. Verify the install took cleanly:
-   ```sh
-   herdr plugin list --plugin herdr-cwd-restore
-   ```
-   then continue at step 3 below (state file) and step 4 (shell hook — still
-   required).
-3. The state file appears on its own after the first tab/workspace
-   event — or force one immediately:
-   ```sh
-   herdr plugin action invoke herdr-cwd-restore.capture
-   ```
-4. Hook your shell so every `cd` snapshots — without this, restores miss
-   directories changed after a tab was opened. Pick the line matching your
-   install path (use `fish` or `bash` in place of `zsh` as needed):
-   - **a. Direct install (step 1.a):**
-     ```sh
-     sh "$(herdr plugin list --plugin herdr-cwd-restore --json | sed -n 's/.*"plugin_root":"\([^"]*\)".*/\1/p')/setup.sh" zsh
-     ```
-     Managed copy missing the script? Reinstall first (step 1.a — Herdr v1
-     has no `plugin update`).
-   - **b. Local checkout (step 1.b):**
-     ```sh
-     /path/to/herdr-cwd-restore/setup.sh zsh
-     ```
-   Then re-source your rc file or restart your shell. Re-running is safe
-   (idempotent, backs up to `<rc>.bak`).
-5. Verify: restart the Herdr server process (not just detach/re-attach the
-   UI — that triggers nothing by design), then
-   check the hook ran and what it did:
-   ```sh
-   herdr plugin log list --plugin herdr-cwd-restore
-   ```
-   Expect `already present ... skipping` lines when nothing is missing.
+```sh
+herdr plugin install Wartafak/herdr-cwd-restore
+sh "$(herdr plugin list --plugin herdr-cwd-restore --json | sed -n 's/.*"plugin_root":"\([^"]*\)".*/\1/p')/setup.sh" zsh
+```
+
+Use `fish` or `bash` in place of `zsh` as needed, then re-source your rc file
+or restart your shell. `setup.sh` is idempotent: it installs the `cd` hook
+into the shell rc and sets `resume_agents_on_restore = false` in
+`~/.config/herdr/config.toml` (see Requirements), backing up any file it
+changes to `<file>.bak`.
+
+The state file appears on its own after the first tab/workspace event — or
+force one immediately:
+
+```sh
+herdr plugin action invoke herdr-cwd-restore.capture
+```
+
+The restore hook runs on the next Herdr server start (see Scope above); check
+what it did afterwards with:
+
+```sh
+herdr plugin log list --plugin herdr-cwd-restore
+```
+
+### Pinned installs
+
+Pin a tag or commit:
+
+```sh
+herdr plugin install Wartafak/herdr-cwd-restore --ref <tag-or-sha>
+```
+
+Add `--yes` for non-interactive installs. Herdr v1 has no `plugin update` —
+refresh a managed install by reinstalling:
+
+```sh
+herdr plugin uninstall herdr-cwd-restore
+herdr plugin install Wartafak/herdr-cwd-restore
+```
+
+Re-run `setup.sh` afterwards (the command from Install): the managed
+`plugin_root` changes between installs, and `setup.sh` refreshes the hook
+paths it wrote earlier. Your state under
+`herdr plugin config-dir herdr-cwd-restore` survives uninstall/reinstall.
+
+### Local development
+
+```sh
+git clone https://github.com/Wartafak/herdr-cwd-restore
+cd herdr-cwd-restore
+herdr plugin link "$PWD"
+sh setup.sh zsh
+```
+
+Linking over a managed install just works — the link replaces it, no
+uninstall needed. To go back to the managed install:
+
+```sh
+herdr plugin unlink herdr-cwd-restore
+herdr plugin install Wartafak/herdr-cwd-restore
+```
+
+- The link points at the checkout, so source edits apply on the next
+  event/invocation; manifest (`herdr-plugin.toml`) changes need a re-link or
+  server restart.
+- Re-run `sh setup.sh zsh` after moving the checkout — it refreshes stale
+  hook paths, and this includes paths written by an earlier managed install.
+- Run `npm test` before pushing (Node's built-in runner, no dependencies).
 
 ## Workspace State file
 
@@ -127,10 +133,15 @@ change overwrites it anyway:
 - Same-label-different-dir tabs in one space are skipped with a warning
   (rename the tab so the next save picks it up); the same label in
   different spaces is saved once per space.
-- Every rewrite rotates the previous snapshot to
-  `projects/workspace-state.prev.toml` first, so one bad capture (e.g. the first
-  event after a degraded Herdr restore) never destroys the last good state
-  silently.
+- Every rewrite is compared against the history: changed layouts accumulate
+  as timestamped copies in `projects/history/`
+  (`workspace-state-<UTC stamp>.toml`, newest 50 kept; unchanged rewrites
+  add nothing), so one bad capture (e.g. the first event after a degraded
+  Herdr restore) never destroys the last good state silently.
+- To revert: copy a history entry back over `projects/workspace-state.toml`,
+  then restart the Herdr server process —
+  the startup reconciler applies it. The next snapshot after the restart
+  records the reverted layout as a new history entry.
 
 ## On-demand snapshot
 
@@ -138,8 +149,8 @@ change overwrites it anyway:
 herdr plugin action invoke herdr-cwd-restore.capture  # rewrite workspace-state.toml now
 ```
 
-It always rewrites the single state file (rotating the
-previous one to `workspace-state.prev.toml` first).
+It always rewrites the single state file (changed layouts are appended to
+the timestamped `projects/history/`).
 
 ## Verifying the `cd` hook
 
@@ -151,8 +162,8 @@ in your shell rc is wrong or the rc wasn't re-sourced.
 ## Layout
 
 - `herdr-plugin.toml` — plugin manifest (the `[[startup]]` restore hook,
-  the `[[events]]` autosave hooks and the invocable `open` / `capture`
-  `[[actions]]` entries).
+  the `[[events]]` autosave hooks and the invocable `capture` `[[actions]]`
+  entry).
 - `src/utils/workspace-state.js` — the single live-state reader:
   `getWorkspaceState()` returns the current layout as
   `[{ tabId, workspace, label, cwd }]` (tab objects expose no cwd, so each
@@ -167,8 +178,8 @@ in your shell rc is wrong or the rc wasn't re-sourced.
   by workspace via `herdr tab create --cwd`), `closeTab`, workspace
   create-or-reuse.
 - `src/snapshot.js` — renders live state into `projects/workspace-state.toml`
-  (`--stdout` previews without writing), rotating the previous file to
-  `workspace-state.prev.toml` first.
+  (`--stdout` previews without writing), appending changed layouts to the
+  timestamped `projects/history/` (newest 50 kept).
 - `src/snapshot.sh` — interpreter wrapper for the event hooks, the shell
   hooks, and the invocable `capture` `[[actions]]` entry.
 - `src/restore.js` — startup reconciler: enforces `projects/workspace-state.toml`
@@ -199,8 +210,8 @@ npm test
 ```
 
 `test/*.test.js` cover the pure logic: TOML subset parsing, project
-parsing/naming/path resolution, snapshot arg handling/rendering/backup
-rotation, restore reconcile planning. Live
+parsing/naming/path resolution, snapshot arg handling/rendering/history
+recording, restore reconcile planning. Live
 Herdr calls (`getWorkspaceState`, `tab create`, `pane run`, `tab close`) are
 verified against a real server instead of mocked. Test fixtures go under
 file-specific subdirs of `test/.tmp/` (git-ignored) — never outside the repo.
